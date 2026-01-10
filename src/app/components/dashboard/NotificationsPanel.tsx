@@ -8,32 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Badge } from "../ui/badge";
 
-const recentNotifications = [
-  {
-    id: "1",
-    title: "Welcome Email",
-    recipient: "All New Users",
-    sent: "2024-12-20",
-    status: "Sent",
-    type: "Email",
-  },
-  {
-    id: "2",
-    title: "Deal Completion Reminder",
-    recipient: "Active Buyers",
-    sent: "2024-12-19",
-    status: "Scheduled",
-    type: "Push",
-  },
-  {
-    id: "3",
-    title: "Payment Received",
-    recipient: "john.doe@example.com",
-    sent: "2024-12-18",
-    status: "Sent",
-    type: "Email",
-  },
-];
+const recentNotifications: Array<{
+  id: string;
+  title: string;
+  recipient: string;
+  sent: string;
+  status: string;
+  type: string;
+}> = [];
 
 export function NotificationsPanel() {
   return (

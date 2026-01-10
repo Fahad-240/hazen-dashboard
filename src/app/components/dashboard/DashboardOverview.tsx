@@ -30,31 +30,11 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const revenueData = [
-  { month: "Jan", revenue: 45000, deals: 120 },
-  { month: "Feb", revenue: 52000, deals: 145 },
-  { month: "Mar", revenue: 48000, deals: 135 },
-  { month: "Apr", revenue: 61000, deals: 168 },
-  { month: "May", revenue: 55000, deals: 152 },
-  { month: "Jun", revenue: 67000, deals: 189 },
-  { month: "Jul", revenue: 72000, deals: 205 },
-];
+const revenueData: Array<{ month: string; revenue: number; deals: number }> = [];
 
-const userRoleData = [
-  { name: "Buyers", value: 3420, color: "#0ea5e9" },
-  { name: "Sellers", value: 2890, color: "#8b5cf6" },
-  { name: "Agents", value: 1560, color: "#ec4899" },
-  { name: "Admins", value: 45, color: "#f59e0b" },
-];
+const userRoleData: Array<{ name: string; value: number; color: string }> = [];
 
-const activityData = [
-  { time: "00:00", users: 245 },
-  { time: "04:00", users: 189 },
-  { time: "08:00", users: 512 },
-  { time: "12:00", users: 789 },
-  { time: "16:00", users: 654 },
-  { time: "20:00", users: 432 },
-];
+const activityData: Array<{ time: string; users: number }> = [];
 
 export function DashboardOverview() {
   return (

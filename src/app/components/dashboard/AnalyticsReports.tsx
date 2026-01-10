@@ -17,29 +17,11 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const userGrowthData = [
-  { month: "Jan", buyers: 450, sellers: 320, agents: 120 },
-  { month: "Feb", buyers: 520, sellers: 380, agents: 145 },
-  { month: "Mar", buyers: 480, sellers: 340, agents: 135 },
-  { month: "Apr", buyers: 610, sellers: 420, agents: 168 },
-  { month: "May", buyers: 550, sellers: 390, agents: 152 },
-  { month: "Jun", buyers: 670, sellers: 450, agents: 189 },
-];
+const userGrowthData: Array<{ month: string; buyers: number; sellers: number; agents: number }> = [];
 
-const dealVolumeData = [
-  { week: "Week 1", volume: 45, value: 12500 },
-  { week: "Week 2", volume: 52, value: 15200 },
-  { week: "Week 3", volume: 48, value: 13800 },
-  { week: "Week 4", volume: 61, value: 18900 },
-];
+const dealVolumeData: Array<{ week: string; volume: number; value: number }> = [];
 
-const conversionData = [
-  { stage: "Signup", users: 1000 },
-  { stage: "Profile Complete", users: 850 },
-  { stage: "First Browse", users: 720 },
-  { stage: "First Inquiry", users: 450 },
-  { stage: "First Deal", users: 280 },
-];
+const conversionData: Array<{ stage: string; users: number }> = [];
 
 export function AnalyticsReports() {
   return (

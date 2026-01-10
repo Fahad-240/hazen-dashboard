@@ -51,6 +51,8 @@ interface TopBarProps {
   adminName?: string;
   adminEmail?: string;
   onViewAllNotifications?: () => void;
+  onProfileClick?: () => void;
+  onSettingsClick?: () => void;
 }
 
 export function TopBar({
@@ -59,6 +61,8 @@ export function TopBar({
   adminName = "Admin User",
   adminEmail = "admin@sourceimpact.com",
   onViewAllNotifications,
+  onProfileClick,
+  onSettingsClick,
 }: TopBarProps) {
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
   
@@ -88,12 +92,12 @@ export function TopBar({
     <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6">
       {/* Left Section */}
       <div className="flex items-center gap-4 flex-1">
-        {/* Mobile Menu Button */}
+        {/* Menu Toggle Button - Visible on all screens */}
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden"
           onClick={onMenuToggle}
+          className="h-9 w-9"
         >
           <Menu className="h-5 w-5" />
         </Button>
@@ -217,11 +221,25 @@ export function TopBar({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                if (onProfileClick) {
+                  onProfileClick();
+                }
+              }}
+              className="cursor-pointer"
+            >
               <User className="mr-2 h-4 w-4" />
               Profile
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                if (onSettingsClick) {
+                  onSettingsClick();
+                }
+              }}
+              className="cursor-pointer"
+            >
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>

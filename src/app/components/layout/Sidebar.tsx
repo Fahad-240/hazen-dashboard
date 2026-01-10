@@ -10,6 +10,7 @@ import {
   Bell,
   ChartBar,
   Trophy,
+  Wallet,
   Settings,
   Shield,
   ChevronLeft,
@@ -23,6 +24,7 @@ interface SidebarProps {
   onNavigate: (view: string) => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  mobile?: boolean;
 }
 
 const menuItems = [
@@ -36,11 +38,12 @@ const menuItems = [
   { id: "notifications", label: "Notifications", icon: Bell, permission: "manage_support" as const },
   { id: "analytics", label: "Analytics", icon: ChartBar, permission: "view_analytics" as const },
   { id: "rewards", label: "Rewards", icon: Trophy, permission: "manage_rewards" as const },
+  { id: "withdrawals", label: "Withdrawals", icon: Wallet, permission: "manage_rewards" as const },
   { id: "settings", label: "Settings", icon: Settings, permission: "system_settings" as const },
   { id: "security", label: "Security", icon: Shield, permission: "system_settings" as const },
 ];
 
-export function Sidebar({ currentView, onNavigate, collapsed, onToggleCollapse }: SidebarProps) {
+export function Sidebar({ currentView, onNavigate, collapsed, onToggleCollapse, mobile = false }: SidebarProps) {
   const { permissions, user } = useAuth();
 
   // Filter menu items based on permissions
@@ -56,8 +59,9 @@ export function Sidebar({ currentView, onNavigate, collapsed, onToggleCollapse }
   return (
     <aside
       className={cn(
-        "hidden lg:flex flex-col bg-slate-900 text-white border-r border-slate-800 transition-all duration-300",
-        collapsed ? "w-16" : "w-64"
+        "flex flex-col bg-slate-900 text-white border-r border-slate-800 transition-all duration-300",
+        mobile ? "w-full" : "hidden lg:flex",
+        !mobile && (collapsed ? "w-16" : "w-64")
       )}
     >
       {/* Logo */}

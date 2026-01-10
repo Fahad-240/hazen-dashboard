@@ -21,41 +21,17 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 
-const initialAgents = [
-  {
-    id: "1",
-    name: "Mike Johnson",
-    email: "mike.j@example.com",
-    tier: "Gold",
-    deals: 156,
-    recruits: 12,
-    earnings: "$28,450",
-    status: "Active",
-  },
-  {
-    id: "2",
-    name: "Lisa Anderson",
-    email: "lisa.a@example.com",
-    tier: "Silver",
-    deals: 89,
-    recruits: 5,
-    earnings: "$15,230",
-    status: "Active",
-  },
-  {
-    id: "3",
-    name: "Chris Martinez",
-    email: "chris.m@example.com",
-    tier: "Bronze",
-    deals: 45,
-    recruits: 2,
-    earnings: "$7,890",
-    status: "Active",
-  },
-];
-
 export function AgentManagement() {
-  const [agents, setAgents] = useState(initialAgents);
+  const [agents, setAgents] = useState<Array<{
+    id: string;
+    name: string;
+    email: string;
+    tier: string;
+    deals: number;
+    recruits: number;
+    earnings: string;
+    status: string;
+  }>>([]);
   const [selectedAgent, setSelectedAgent] = useState<typeof agents[0] | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editFormData, setEditFormData] = useState({

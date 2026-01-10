@@ -16,44 +16,17 @@ import {
 } from "recharts";
 import { DataTable } from "../shared/DataTable";
 
-const revenueData = [
-  { month: "Jan", revenue: 45000, commissions: 2250, payouts: 8900 },
-  { month: "Feb", revenue: 52000, commissions: 2600, payouts: 10200 },
-  { month: "Mar", revenue: 48000, commissions: 2400, payouts: 9500 },
-  { month: "Apr", revenue: 61000, commissions: 3050, payouts: 12100 },
-  { month: "May", revenue: 55000, commissions: 2750, payouts: 10900 },
-  { month: "Jun", revenue: 67000, commissions: 3350, payouts: 13200 },
-];
+const revenueData: Array<{ month: string; revenue: number; commissions: number; payouts: number }> = [];
 
-const transactions = [
-  {
-    id: "TXN-9876",
-    type: "Deal Payment",
-    user: "John Doe",
-    amount: "$5,500",
-    fee: "$275",
-    status: "Completed",
-    date: "2024-12-20",
-  },
-  {
-    id: "TXN-9875",
-    type: "Agent Payout",
-    user: "Mike Johnson",
-    amount: "$1,250",
-    fee: "-",
-    status: "Pending",
-    date: "2024-12-19",
-  },
-  {
-    id: "TXN-9874",
-    type: "Refund",
-    user: "Sarah Williams",
-    amount: "$800",
-    fee: "$0",
-    status: "Completed",
-    date: "2024-12-18",
-  },
-];
+const transactions: Array<{
+  id: string;
+  type: string;
+  user: string;
+  amount: string;
+  fee: string;
+  status: string;
+  date: string;
+}> = [];
 
 export function FinancialManagement() {
   const columns = [

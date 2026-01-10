@@ -5,56 +5,22 @@ import { Button } from "../ui/button";
 import { DataTable } from "../shared/DataTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
-const auditLogs = [
-  {
-    id: "1",
-    action: "User Login",
-    admin: "Admin User",
-    ip: "192.168.1.100",
-    timestamp: "2024-12-20 14:32:15",
-    status: "Success",
-  },
-  {
-    id: "2",
-    action: "Deal Approved",
-    admin: "Admin User",
-    ip: "192.168.1.100",
-    timestamp: "2024-12-20 14:15:22",
-    status: "Success",
-  },
-  {
-    id: "3",
-    action: "User Suspended",
-    admin: "Super Admin",
-    ip: "192.168.1.105",
-    timestamp: "2024-12-20 13:45:10",
-    status: "Success",
-  },
-];
+const auditLogs: Array<{
+  id: string;
+  action: string;
+  admin: string;
+  ip: string;
+  timestamp: string;
+  status: string;
+}> = [];
 
-const fraudAlerts = [
-  {
-    id: "F-123",
-    type: "Multiple Failed Logins",
-    user: "suspicious@email.com",
-    severity: "High",
-    timestamp: "2024-12-20 14:30:00",
-  },
-  {
-    id: "F-122",
-    type: "Unusual Transaction Pattern",
-    user: "John Doe",
-    severity: "Medium",
-    timestamp: "2024-12-20 12:15:00",
-  },
-  {
-    id: "F-121",
-    type: "IP Address Mismatch",
-    user: "Jane Smith",
-    severity: "Low",
-    timestamp: "2024-12-20 10:20:00",
-  },
-];
+const fraudAlerts: Array<{
+  id: string;
+  type: string;
+  user: string;
+  severity: string;
+  timestamp: string;
+}> = [];
 
 export function SecurityPanel() {
   const auditColumns = [

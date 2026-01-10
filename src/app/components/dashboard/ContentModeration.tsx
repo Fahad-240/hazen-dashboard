@@ -11,38 +11,16 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 
-const initialFlaggedContent = [
-  {
-    id: "F-5678",
-    type: "Profile",
-    user: "John Doe",
-    reason: "Inappropriate content",
-    reporter: "Jane Smith",
-    status: "Pending",
-    date: "2024-12-20",
-  },
-  {
-    id: "F-5677",
-    type: "Gig Posting",
-    user: "Sarah Williams",
-    reason: "Spam",
-    reporter: "Mike Johnson",
-    status: "Under Review",
-    date: "2024-12-19",
-  },
-  {
-    id: "F-5676",
-    type: "Deal Message",
-    user: "Tom Brown",
-    reason: "Harassment",
-    reporter: "Lisa Anderson",
-    status: "Resolved",
-    date: "2024-12-18",
-  },
-];
-
 export function ContentModeration() {
-  const [flaggedContent, setFlaggedContent] = useState(initialFlaggedContent);
+  const [flaggedContent, setFlaggedContent] = useState<Array<{
+    id: string;
+    type: string;
+    user: string;
+    reason: string;
+    reporter: string;
+    status: string;
+    date: string;
+  }>>([]);
   const [selectedFlag, setSelectedFlag] = useState<typeof flaggedContent[0] | null>(null);
 
   const typeBadge = (type: string) => {

@@ -20,38 +20,16 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 
-const initialGigs = [
-  {
-    id: "G-1234",
-    title: "Full Stack Developer Needed",
-    poster: "TechCorp Inc.",
-    budget: "$3,000 - $5,000",
-    applicants: 23,
-    status: "Open",
-    posted: "2024-12-18",
-  },
-  {
-    id: "G-1233",
-    title: "Logo Design for Startup",
-    poster: "Jane Smith",
-    budget: "$500 - $800",
-    applicants: 45,
-    status: "In Progress",
-    posted: "2024-12-15",
-  },
-  {
-    id: "G-1232",
-    title: "Content Writer for Blog",
-    poster: "Marketing Pro",
-    budget: "$200 - $400",
-    applicants: 12,
-    status: "Closed",
-    posted: "2024-12-10",
-  },
-];
-
 export function GigManagement() {
-  const [gigs, setGigs] = useState(initialGigs);
+  const [gigs, setGigs] = useState<Array<{
+    id: string;
+    title: string;
+    poster: string;
+    budget: string;
+    applicants: number;
+    status: string;
+    posted: string;
+  }>>([]);
   const [selectedGig, setSelectedGig] = useState<typeof gigs[0] | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editFormData, setEditFormData] = useState({

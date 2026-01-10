@@ -6,6 +6,7 @@ interface AuthContextType {
   permissions: Permissions;
   isSuperAdmin: boolean;
   isAdmin: boolean;
+  refreshUser?: () => Promise<void>;
 }
 
 // Default permissions (all false) for when user is not logged in
@@ -49,16 +50,18 @@ const AuthContext = createContext<AuthContextType>(defaultContextValue);
 export function AuthProvider({
   children,
   user,
+  refreshUser,
 }: {
   children: ReactNode;
   user: User | null;
+  refreshUser?: () => Promise<void>;
 }) {
   const permissions = user ? getPermissionsForRole(user.role) : DEFAULT_PERMISSIONS;
   const isSuperAdmin = user?.role === "superadmin";
   const isAdmin = user?.role === "admin";
 
   return (
-    <AuthContext.Provider value={{ user, permissions, isSuperAdmin, isAdmin }}>
+    <AuthContext.Provider value={{ user, permissions, isSuperAdmin, isAdmin, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

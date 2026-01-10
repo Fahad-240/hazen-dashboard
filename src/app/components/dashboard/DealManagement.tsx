@@ -9,58 +9,19 @@ import { DataTable } from "../shared/DataTable";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
-const deals = [
-  {
-    id: "D-4523",
-    title: "Premium Website Development",
-    buyer: "John Doe",
-    seller: "Jane Smith",
-    agent: "Mike Johnson",
-    amount: "$5,500",
-    commission: "$275",
-    status: "Active",
-    escrow: "Funded",
-    createdDate: "2024-12-15",
-  },
-  {
-    id: "D-4522",
-    title: "Logo Design Package",
-    buyer: "Sarah Williams",
-    seller: "Tom Brown",
-    agent: "Lisa Anderson",
-    amount: "$1,200",
-    commission: "$60",
-    status: "Completed",
-    escrow: "Released",
-    createdDate: "2024-12-10",
-  },
-  {
-    id: "D-4521",
-    title: "Mobile App Development",
-    buyer: "David Lee",
-    seller: "Emma Wilson",
-    agent: "Mike Johnson",
-    amount: "$12,000",
-    commission: "$600",
-    status: "In Dispute",
-    escrow: "Held",
-    createdDate: "2024-12-08",
-  },
-  {
-    id: "D-4520",
-    title: "Content Writing - 10 Articles",
-    buyer: "Alex Turner",
-    seller: "Rachel Green",
-    agent: "Chris Martinez",
-    amount: "$800",
-    commission: "$40",
-    status: "Pending",
-    escrow: "Awaiting",
-    createdDate: "2024-12-18",
-  },
-];
-
 export function DealManagement() {
+  const [deals, setDeals] = useState<Array<{
+    id: string;
+    title: string;
+    buyer: string;
+    seller: string;
+    agent: string;
+    amount: string;
+    commission: string;
+    status: string;
+    escrow: string;
+    createdDate: string;
+  }>>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedDeal, setSelectedDeal] = useState<typeof deals[0] | null>(null);

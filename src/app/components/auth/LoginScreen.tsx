@@ -97,14 +97,7 @@ export function LoginScreen({ onLogin, onForgotPassword, isLoading, error }: Log
                   Remember me
                 </Label>
               </div>
-              <button
-                type="button"
-                onClick={onForgotPassword}
-                className="text-sm text-slate-900 hover:underline"
-                disabled={isLoading}
-              >
-                Forgot password?
-              </button>
+              
             </div>
 
             <Button type="submit" className="w-full h-11" disabled={isLoading}>
@@ -134,7 +127,6 @@ export function LoginScreen({ onLogin, onForgotPassword, isLoading, error }: Log
               <div>
                 <span className="font-medium">Regular Admin:</span> admin@sourceimpact.com / admin123
               </div>
-              <p className="text-xs text-slate-500 mt-2">2FA Code: 111111 (Super Admin) / 222222 (Regular Admin)</p>
             </div>
           </div>
         </div>

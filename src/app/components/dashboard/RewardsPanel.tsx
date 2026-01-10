@@ -1,23 +1,12 @@
 import { Trophy, Award, Star, Medal } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
-const topUsers = [
-  { rank: 1, name: "Mike Johnson", points: 15420, badge: "Gold Champion" },
-  { rank: 2, name: "Lisa Anderson", points: 12850, badge: "Silver Star" },
-  { rank: 3, name: "Chris Martinez", points: 10230, badge: "Bronze Elite" },
-  { rank: 4, name: "Sarah Williams", points: 8750, badge: "Rising Star" },
-  { rank: 5, name: "Tom Brown", points: 7420, badge: "Achiever" },
-];
+const topUsers: Array<{ rank: number; name: string; points: number; badge: string }> = [];
 
-const badges = [
-  { name: "First Deal", description: "Complete your first deal", earned: 2345 },
-  { name: "Top Seller", description: "Achieve 100+ deals", earned: 156 },
-  { name: "5-Star Rating", description: "Maintain 5.0 rating", earned: 423 },
-  { name: "Early Adopter", description: "Join in first month", earned: 1250 },
-];
+const badges: Array<{ name: string; description: string; earned: number }> = [];
 
 export function RewardsPanel() {
   return (
@@ -41,6 +30,8 @@ export function RewardsPanel() {
           <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
           <TabsTrigger value="badges">Badges</TabsTrigger>
           <TabsTrigger value="rewards">Rewards</TabsTrigger>
+          <TabsTrigger value="triggers">Triggers</TabsTrigger>
+          <TabsTrigger value="definitions">Definitions</TabsTrigger>
         </TabsList>
 
         {/* Leaderboard */}
@@ -142,6 +133,82 @@ export function RewardsPanel() {
                   minPoints={25000}
                   benefits="Zero fees, exclusive events, personal account manager"
                 />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Triggers Management */}
+        <TabsContent value="triggers">
+          <Card>
+            <CardHeader>
+              <CardTitle>Reward Triggers</CardTitle>
+              <CardDescription>Manage reward trigger conditions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
+                  <div>
+                    <p className="font-medium text-slate-900">Account Created</p>
+                    <p className="text-sm text-slate-600">Triggered when a new user signs up</p>
+                  </div>
+                  <Badge variant="secondary">Active</Badge>
+                </div>
+                <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
+                  <div>
+                    <p className="font-medium text-slate-900">First Deal Completed</p>
+                    <p className="text-sm text-slate-600">Triggered when user completes first deal</p>
+                  </div>
+                  <Badge variant="secondary">Active</Badge>
+                </div>
+                <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
+                  <div>
+                    <p className="font-medium text-slate-900">Deals Milestone</p>
+                    <p className="text-sm text-slate-600">Triggered at 10, 50, 100 deals</p>
+                  </div>
+                  <Badge variant="secondary">Active</Badge>
+                </div>
+                <p className="text-sm text-slate-500 text-center pt-4">
+                  Full trigger management (create/edit/delete) coming soon
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Definitions Management */}
+        <TabsContent value="definitions">
+          <Card>
+            <CardHeader>
+              <CardTitle>Reward Definitions</CardTitle>
+              <CardDescription>Manage reward types and amounts</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
+                  <div>
+                    <p className="font-medium text-slate-900">Welcome Bonus</p>
+                    <p className="text-sm text-slate-600">100 IMPACT tokens for new users</p>
+                  </div>
+                  <Badge variant="secondary">Active</Badge>
+                </div>
+                <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
+                  <div>
+                    <p className="font-medium text-slate-900">First Deal Reward</p>
+                    <p className="text-sm text-slate-600">50 IMPACT tokens for first deal</p>
+                  </div>
+                  <Badge variant="secondary">Active</Badge>
+                </div>
+                <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
+                  <div>
+                    <p className="font-medium text-slate-900">Milestone Badge</p>
+                    <p className="text-sm text-slate-600">Achievement badge for milestones</p>
+                  </div>
+                  <Badge variant="secondary">Active</Badge>
+                </div>
+                <p className="text-sm text-slate-500 text-center pt-4">
+                  Full definition management (create/edit/delete) coming soon
+                </p>
               </div>
             </CardContent>
           </Card>
