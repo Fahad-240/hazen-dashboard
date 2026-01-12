@@ -23,8 +23,8 @@ import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
 import { User } from "./types/auth";
 import { AuthProvider } from "./context/AuthContext";
-import { Sheet, SheetContent } from "./components/ui/sheet";
-import { adminLogin, storeToken, removeToken, getCurrentAdmin } from "./services/api";
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from "./components/ui/sheet";
+import { adminLogin, storeToken, removeToken, getCurrentAdmin, adminLogout } from "./services/api";
 
 type AuthView = "login" | "forgot-password" | "reset-password";
 type DashboardView =
@@ -267,15 +267,38 @@ export default function App() {
   };
 
 
-  const handleLogout = () => {
-    // Remove token from storage
-    removeToken();
-    
-    setIsAuthenticated(false);
-    setCurrentUser(null);
-    setAuthView("login");
-    setCurrentView("dashboard");
-    toast.success("Logged out successfully");
+  const handleLogout = async () => {
+    try {
+      // Call logout API
+      const response = await adminLogout();
+      
+      // Remove token from storage regardless of API response
+      removeToken();
+      
+      // Clear authentication state
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+      setAuthView("login");
+      setCurrentView("dashboard");
+      
+      // Show success message
+      if (response.success) {
+        toast.success(response.message || "Logged out successfully");
+      } else {
+        // Even if API call fails, we still logout locally
+        toast.success("Logged out successfully");
+        console.warn("Logout API call failed, but local logout completed:", response.error);
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Still logout locally even if API call fails
+      removeToken();
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+      setAuthView("login");
+      setCurrentView("dashboard");
+      toast.success("Logged out successfully");
+    }
   };
 
   // Show loading while checking authentication
@@ -409,6 +432,8 @@ export default function App() {
         {/* Mobile Sidebar Drawer */}
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetContent side="left" className="w-64 p-0 bg-slate-900 text-white border-0">
+            <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+            <SheetDescription className="sr-only">Mobile navigation menu</SheetDescription>
             <div className="h-full">
               <Sidebar
                 currentView={currentView}

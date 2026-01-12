@@ -155,6 +155,62 @@ export function removeToken() {
   localStorage.removeItem("admin_token");
 }
 
+// Admin logout API
+export interface LogoutResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
+export async function adminLogout(): Promise<LogoutResponse> {
+  try {
+    const token = getToken();
+    if (!token) {
+      console.log("No token found for logout");
+      return {
+        success: false,
+        error: "No authentication token found",
+      };
+    }
+
+    console.log("Logging out admin...");
+    
+    // Use API_BASE_URL to go through Vite proxy (handles CORS)
+    // Proxy will forward /api/admin/logout to http://192.168.100.68:4000/admin/logout
+    const response = await fetch(`${API_BASE_URL}/admin/logout`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+    console.log("Logout API response:", { status: response.status, data });
+
+    if (!response.ok) {
+      const errorMessage = data.message || data.error || "Failed to logout";
+      console.error("Logout failed:", errorMessage);
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+
+    console.log("Logout successful");
+    return {
+      success: true,
+      message: data.message || "Logged out successfully",
+    };
+  } catch (error) {
+    console.error("Logout error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Network error. Please check your connection.",
+    };
+  }
+}
+
 // Get current admin user details
 export interface CurrentUserResponse {
   success: boolean;
@@ -335,6 +391,247 @@ export async function getUsersList(params?: {
     };
   } catch (error) {
     console.error("Get users list error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Network error. Please check your connection.",
+    };
+  }
+}
+
+// Gigs API
+export interface Gig {
+  id: string;
+  title: string;
+  description?: string;
+  status: "active" | "closed" | "pending" | "approved" | "rejected";
+  created_at: string;
+  [key: string]: any; // For additional fields
+}
+
+export interface GigsListResponse {
+  success: boolean;
+  message?: string;
+  data?: {
+    gigs: Gig[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  };
+  error?: string;
+}
+
+export async function getGigsList(params?: {
+  page?: number;
+  limit?: number;
+  status?: "active" | "closed" | "pending";
+}): Promise<GigsListResponse> {
+  try {
+    const token = getToken();
+    if (!token) {
+      return {
+        success: false,
+        error: "No authentication token found",
+      };
+    }
+
+    // Build query string
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append("page", params.page.toString());
+    if (params?.limit) queryParams.append("limit", params.limit.toString());
+    if (params?.status) queryParams.append("status", params.status);
+
+    const queryString = queryParams.toString();
+    const url = `${API_BASE_URL}/admin/gigs${queryString ? `?${queryString}` : ""}`;
+
+    console.log("Fetching gigs from:", url);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+    console.log("Gigs API response:", data);
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.message || data.error || "Failed to fetch gigs",
+      };
+    }
+
+    // Handle different response formats
+    let gigsData = null;
+    if (data.gigs && Array.isArray(data.gigs)) {
+      gigsData = {
+        gigs: data.gigs,
+        pagination: data.pagination || {
+          page: params?.page || 1,
+          limit: params?.limit || 10,
+          total: data.gigs.length,
+          totalPages: 1,
+        },
+      };
+    } else if (data.data) {
+      gigsData = data.data;
+    }
+
+    return {
+      success: true,
+      message: data.message || "Gigs fetched successfully",
+      data: gigsData || { gigs: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } },
+    };
+  } catch (error) {
+    console.error("Get gigs list error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Network error. Please check your connection.",
+    };
+  }
+}
+
+// Update Gig Status API
+export interface UpdateGigStatusResponse {
+  success: boolean;
+  message?: string;
+  data?: {
+    gig: Gig;
+  };
+  error?: string;
+}
+
+export async function updateGigStatus(
+  gigId: string,
+  status: "approved" | "rejected" | "closed"
+): Promise<UpdateGigStatusResponse> {
+  try {
+    const token = getToken();
+    if (!token) {
+      return {
+        success: false,
+        error: "No authentication token found",
+      };
+    }
+
+    const url = `${API_BASE_URL}/admin/gigs/${gigId}/status`;
+
+    console.log("Updating gig status:", url, { status });
+
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status }),
+    });
+
+    const data = await response.json();
+    console.log("Update gig status response:", data);
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.message || data.error || "Failed to update gig status",
+      };
+    }
+
+    return {
+      success: true,
+      message: data.message || "Gig status updated successfully",
+      data: {
+        gig: data.gig || data.data?.gig,
+      },
+    };
+  } catch (error) {
+    console.error("Update gig status error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Network error. Please check your connection.",
+    };
+  }
+}
+
+// Dashboard Analytics API
+export interface DashboardAnalytics {
+  users: {
+    total: number;
+    active: number;
+    byRole: {
+      influencer?: number;
+      sponsor?: number;
+      agent?: number;
+      admin?: number;
+      [key: string]: number | undefined;
+    };
+  };
+  gigs: {
+    total: number;
+    byStatus: {
+      active?: number;
+      closed?: number;
+      pending?: number;
+      [key: string]: number | undefined;
+    };
+  };
+  transactions: {
+    total: number;
+    revenueLastMonth: number;
+  };
+}
+
+export interface DashboardAnalyticsResponse {
+  success: boolean;
+  message?: string;
+  data?: DashboardAnalytics;
+  error?: string;
+}
+
+export async function getDashboardAnalytics(): Promise<DashboardAnalyticsResponse> {
+  try {
+    const token = getToken();
+    if (!token) {
+      return {
+        success: false,
+        error: "No authentication token found",
+      };
+    }
+
+    const url = `${API_BASE_URL}/admin/analytics/dashboard`;
+
+    console.log("Fetching dashboard analytics from:", url);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+    console.log("Dashboard analytics API response:", data);
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.message || data.error || "Failed to fetch dashboard analytics",
+      };
+    }
+
+    return {
+      success: true,
+      message: data.message || "Dashboard analytics fetched successfully",
+      data: data,
+    };
+  } catch (error) {
+    console.error("Get dashboard analytics error:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Network error. Please check your connection.",

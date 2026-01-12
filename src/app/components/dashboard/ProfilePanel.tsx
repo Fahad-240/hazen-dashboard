@@ -15,7 +15,6 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { Textarea } from "../ui/textarea";
 import { AvatarImage } from "../ui/avatar";
 import { useAuth } from "../../context/AuthContext";
 import { getToken } from "../../services/api";
@@ -36,8 +35,6 @@ export function ProfilePanel() {
   const [formData, setFormData] = useState({
     name: user?.name || "",
     email: user?.email || "",
-    phone: (user as any)?.phone || (user as any)?.phoneNumber || "",
-    bio: (user as any)?.bio || (user as any)?.description || "",
   });
   const [originalEmail, setOriginalEmail] = useState(user?.email || "");
 
@@ -86,8 +83,6 @@ export function ProfilePanel() {
       setFormData({
         name: user.name,
         email: currentEmail,
-        phone: (user as any)?.phone || (user as any)?.phoneNumber || "",
-        bio: (user as any)?.bio || (user as any)?.description || "",
       });
       setIsEditDialogOpen(true);
     }
@@ -111,19 +106,17 @@ export function ProfilePanel() {
       let response;
       let data;
       
-      // Build update payload - include name and email
+      // Build update payload according to API spec
+      // API expects: { name, email, avatar?, profile? }
+      // Include all fields that are available in UI for update
       const updatePayload: Record<string, any> = {
         name: formData.name.trim(),
-        email: formData.email.trim(), // Include email - backend should update it
+        email: formData.email.trim(), // Email is required and should be updated
       };
       
-      // Include optional fields if they have values
-      if (formData.phone && formData.phone.trim()) {
-        updatePayload.phone = formData.phone.trim();
-      }
-      
-      if (formData.bio && formData.bio.trim()) {
-        updatePayload.bio = formData.bio.trim();
+      // Include avatar if available (according to API spec)
+      if (avatarUrl && avatarUrl.trim()) {
+        updatePayload.avatar = avatarUrl.trim();
       }
       
       console.log('📤 Sending update payload:', updatePayload);
@@ -302,8 +295,6 @@ export function ProfilePanel() {
             setFormData({
               name: updatedUser.name || formData.name,
               email: updatedUser.email || formData.email,
-              phone: (updatedUser as any)?.phone || (updatedUser as any)?.phoneNumber || formData.phone,
-              bio: (updatedUser as any)?.bio || (updatedUser as any)?.description || formData.bio,
             });
             
             // Update avatar if present
@@ -343,8 +334,6 @@ export function ProfilePanel() {
       setFormData({
         name: user.name,
         email: user.email,
-        phone: (user as any)?.phone || (user as any)?.phoneNumber || "",
-        bio: (user as any)?.bio || (user as any)?.description || "",
       });
     }
   };
@@ -651,6 +640,50 @@ export function ProfilePanel() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Avatar Upload Section */}
+            <div className="space-y-2">
+              <Label>Profile Picture</Label>
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <Avatar className="h-20 w-20">
+                    {avatarUrl ? (
+                      <AvatarImage src={avatarUrl} alt={formData.name || "User"} />
+                    ) : null}
+                    <AvatarFallback className="bg-slate-900 text-white text-lg">
+                      {getInitials(formData.name || "User")}
+                    </AvatarFallback>
+                  </Avatar>
+                  {isUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
+                      <div className="h-6 w-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleImageClick}
+                    disabled={isUploading}
+                    className="w-full"
+                  >
+                    <Camera className="mr-2 h-4 w-4" />
+                    {isUploading ? "Uploading..." : "Change Avatar"}
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    JPG, PNG or GIF. Max size 5MB
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
               <Input
@@ -672,27 +705,6 @@ export function ProfilePanel() {
               <p className="text-xs text-slate-500 mt-1">
                 Note: Changing your email will require you to use the new email for future logins.
               </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
-              <Input
-                id="phone"
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="Enter your phone number"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bio">Bio / Description</Label>
-              <Textarea
-                id="bio"
-                value={formData.bio}
-                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                placeholder="Enter a brief description about yourself"
-                rows={4}
-                className="resize-none"
-              />
             </div>
             <div className="rounded-md bg-slate-50 p-3">
               <p className="text-xs text-slate-600">

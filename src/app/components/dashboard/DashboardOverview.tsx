@@ -1,277 +1,265 @@
+import { useState, useEffect } from "react";
 import {
   Users,
-  Handshake,
+  Briefcase,
   DollarSign,
-  TrendingUp,
-  ArrowUp,
-  ArrowDown,
-  Activity,
-  CircleAlert,
-  CircleCheck,
-  Clock,
+  CreditCard,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
 import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+  ResponsiveContainer,
   Tooltip,
   Legend,
-  ResponsiveContainer,
 } from "recharts";
+import { getDashboardAnalytics, DashboardAnalytics } from "../../services/api";
+import { toast } from "sonner";
 
-const revenueData: Array<{ month: string; revenue: number; deals: number }> = [];
-
-const userRoleData: Array<{ name: string; value: number; color: string }> = [];
-
-const activityData: Array<{ time: string; users: number }> = [];
+const COLORS = {
+  influencer: "#0ea5e9",
+  sponsor: "#8b5cf6",
+  agent: "#10b981",
+  admin: "#f59e0b",
+  active: "#10b981",
+  closed: "#64748b",
+  pending: "#f59e0b",
+};
 
 export function DashboardOverview() {
+  const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, []);
+
+  const fetchAnalytics = async (showRefreshing = false) => {
+    if (showRefreshing) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+
+    try {
+      const response = await getDashboardAnalytics();
+
+      if (response.success && response.data) {
+        setAnalytics(response.data);
+      } else {
+        toast.error(response.error || "Failed to fetch dashboard analytics");
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard analytics:", error);
+      toast.error("Failed to fetch dashboard analytics");
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  // Prepare data for charts
+  const usersByRoleData = analytics?.users?.byRole
+    ? Object.entries(analytics.users.byRole)
+        .filter(([_, count]) => count && count > 0)
+        .map(([role, count]) => ({
+          name: role.charAt(0).toUpperCase() + role.slice(1),
+          value: count || 0,
+          color: COLORS[role as keyof typeof COLORS] || "#64748b",
+        }))
+    : [];
+
+  const gigsByStatusData = analytics?.gigs?.byStatus
+    ? Object.entries(analytics.gigs.byStatus)
+        .filter(([_, count]) => count && count > 0)
+        .map(([status, count]) => ({
+          name: status.charAt(0).toUpperCase() + status.slice(1),
+          value: count || 0,
+          color: COLORS[status as keyof typeof COLORS] || "#64748b",
+        }))
+    : [];
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-slate-900 mb-1">Dashboard</h1>
+          <p className="text-slate-600">Welcome back! Here's what's happening with your platform.</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="h-8 w-8 border-4 border-slate-200 border-t-slate-900 rounded-full animate-spin mx-auto mb-3"></div>
+            <div className="text-slate-500">Loading dashboard analytics...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-slate-900 mb-1">Dashboard</h1>
-        <p className="text-slate-600">Welcome back! Here's what's happening with your platform.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-slate-900 mb-1">Dashboard</h1>
+          <p className="text-slate-600">Welcome back! Here's what's happening with your platform.</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => fetchAnalytics(true)}
+          disabled={isRefreshing}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title="Total Users"
-          value="7,915"
-          change="+12.5%"
-          trend="up"
+          value={analytics?.users?.total ? analytics.users.total.toLocaleString() : "0"}
           icon={Users}
           color="blue"
         />
         <KPICard
-          title="Active Deals"
-          value="1,234"
-          change="+8.2%"
-          trend="up"
-          icon={Handshake}
+          title="Total Gigs"
+          value={analytics?.gigs?.total ? analytics.gigs.total.toLocaleString() : "0"}
+          icon={Briefcase}
           color="purple"
         />
         <KPICard
-          title="Monthly Revenue"
-          value="$72,450"
-          change="+15.3%"
-          trend="up"
-          icon={DollarSign}
+          title="Total Transactions"
+          value={analytics?.transactions?.total ? analytics.transactions.total.toLocaleString() : "0"}
+          icon={CreditCard}
           color="green"
         />
         <KPICard
-          title="Conversion Rate"
-          value="3.24%"
-          change="-0.4%"
-          trend="down"
-          icon={TrendingUp}
+          title="Total Revenue"
+          value={analytics?.transactions?.revenueLastMonth ? formatCurrency(analytics.transactions.revenueLastMonth) : "$0.00"}
+          icon={DollarSign}
           color="orange"
         />
       </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue Trend */}
+        {/* Users by Role */}
         <Card>
           <CardHeader>
-            <CardTitle>Revenue & Deal Trends</CardTitle>
+            <CardTitle>Users by Role</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="month" stroke="#64748b" fontSize={12} />
-                <YAxis stroke="#64748b" fontSize={12} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#fff",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "8px",
-                  }}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#0ea5e9"
-                  strokeWidth={2}
-                  dot={{ fill: "#0ea5e9" }}
-                  name="Revenue ($)"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="deals"
-                  stroke="#8b5cf6"
-                  strokeWidth={2}
-                  dot={{ fill: "#8b5cf6" }}
-                  name="Deals"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* User Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle>User Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={userRoleData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {userRoleData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+            {usersByRoleData.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={usersByRoleData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {usersByRoleData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  {usersByRoleData.map((role) => (
+                    <div key={role.name} className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: role.color }}
+                      />
+                      <div>
+                        <p className="text-xs text-slate-600">{role.name}</p>
+                        <p className="font-semibold text-slate-900">{role.value.toLocaleString()}</p>
+                      </div>
+                    </div>
                   ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              {userRoleData.map((role) => (
-                <div key={role.name} className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: role.color }}
-                  />
-                  <div>
-                    <p className="text-xs text-slate-600">{role.name}</p>
-                    <p className="font-semibold">{role.value.toLocaleString()}</p>
-                  </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Activity and System Health */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Real-time Activity */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Active Users (Last 24 Hours)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <AreaChart data={activityData}>
-                <defs>
-                  <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="time" stroke="#64748b" fontSize={12} />
-                <YAxis stroke="#64748b" fontSize={12} />
-                <Tooltip />
-                <Area
-                  type="monotone"
-                  dataKey="users"
-                  stroke="#0ea5e9"
-                  fillOpacity={1}
-                  fill="url(#colorUsers)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+              </>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-slate-500">
+                No data available
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* System Health */}
+        {/* Gigs by Status */}
         <Card>
           <CardHeader>
-            <CardTitle>System Health</CardTitle>
+            <CardTitle>Gigs by Status</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <HealthItem
-              label="API Response Time"
-              value="45ms"
-              status="good"
-              icon={CircleCheck}
-            />
-            <HealthItem
-              label="Database Load"
-              value="67%"
-              status="warning"
-              icon={CircleAlert}
-            />
-            <HealthItem
-              label="Active Sessions"
-              value="2,341"
-              status="good"
-              icon={Activity}
-            />
-            <HealthItem
-              label="Queue Status"
-              value="12 pending"
-              status="good"
-              icon={Clock}
-            />
+          <CardContent>
+            {gigsByStatusData.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={gigsByStatusData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {gigsByStatusData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="grid grid-cols-3 gap-4 mt-4">
+                  {gigsByStatusData.map((status) => (
+                    <div key={status.name} className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: status.color }}
+                      />
+                      <div>
+                        <p className="text-xs text-slate-600">{status.name}</p>
+                        <p className="font-semibold text-slate-900">{status.value.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-slate-500">
+                No data available
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
-
-      {/* Recent Activity Feed */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <ActivityItem
-              user="John Doe"
-              action="registered as a new user"
-              time="2 minutes ago"
-              type="user"
-            />
-            <ActivityItem
-              user="Jane Smith"
-              action="completed deal #4523"
-              time="15 minutes ago"
-              type="deal"
-            />
-            <ActivityItem
-              user="Mike Johnson"
-              action="submitted payout request for $1,250"
-              time="1 hour ago"
-              type="payout"
-            />
-            <ActivityItem
-              user="Sarah Williams"
-              action="flagged content for moderation"
-              time="2 hours ago"
-              type="flag"
-            />
-            <ActivityItem
-              user="Admin System"
-              action="completed daily backup"
-              time="3 hours ago"
-              type="system"
-            />
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
@@ -279,17 +267,13 @@ export function DashboardOverview() {
 function KPICard({
   title,
   value,
-  change,
-  trend,
   icon: Icon,
   color,
 }: {
   title: string;
   value: string;
-  change: string;
-  trend: "up" | "down";
   icon: any;
-  color: string;
+  color: "blue" | "purple" | "green" | "orange";
 }) {
   const colorClasses = {
     blue: "bg-blue-100 text-blue-600",
@@ -304,91 +288,13 @@ function KPICard({
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm text-slate-600">{title}</p>
-            <p className="text-slate-900 mt-1">{value}</p>
-            <div className="flex items-center gap-1 mt-2">
-              {trend === "up" ? (
-                <ArrowUp className="h-3 w-3 text-green-600" />
-              ) : (
-                <ArrowDown className="h-3 w-3 text-red-600" />
-              )}
-              <span
-                className={`text-xs ${trend === "up" ? "text-green-600" : "text-red-600"}`}
-              >
-                {change}
-              </span>
-              <span className="text-xs text-slate-500">vs last month</span>
-            </div>
+            <p className="text-slate-900 mt-1 text-2xl font-semibold">{value}</p>
           </div>
-          <div className={`p-3 rounded-lg ${colorClasses[color as keyof typeof colorClasses]}`}>
+          <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
             <Icon className="h-5 w-5" />
           </div>
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function HealthItem({
-  label,
-  value,
-  status,
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  status: "good" | "warning" | "error";
-  icon: any;
-}) {
-  const statusColors = {
-    good: "text-green-600",
-    warning: "text-yellow-600",
-    error: "text-red-600",
-  };
-
-  return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <Icon className={`h-4 w-4 ${statusColors[status]}`} />
-        <span className="text-sm text-slate-600">{label}</span>
-      </div>
-      <span className="text-sm font-medium text-slate-900">{value}</span>
-    </div>
-  );
-}
-
-function ActivityItem({
-  user,
-  action,
-  time,
-  type,
-}: {
-  user: string;
-  action: string;
-  time: string;
-  type: string;
-}) {
-  const typeColors: Record<string, string> = {
-    user: "bg-blue-100 text-blue-700",
-    deal: "bg-green-100 text-green-700",
-    payout: "bg-purple-100 text-purple-700",
-    flag: "bg-red-100 text-red-700",
-    system: "bg-slate-100 text-slate-700",
-  };
-
-  return (
-    <div className="flex items-start gap-3 pb-4 border-b border-slate-100 last:border-0 last:pb-0">
-      <div className="w-2 h-2 bg-slate-400 rounded-full mt-2 flex-shrink-0" />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-slate-900">
-          <span className="font-medium">{user}</span> {action}
-        </p>
-        <div className="flex items-center gap-2 mt-1">
-          <Badge variant="secondary" className={`text-xs ${typeColors[type]}`}>
-            {type}
-          </Badge>
-          <span className="text-xs text-slate-500">{time}</span>
-        </div>
-      </div>
-    </div>
   );
 }
