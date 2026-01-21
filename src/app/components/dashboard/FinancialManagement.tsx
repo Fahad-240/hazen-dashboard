@@ -1,10 +1,27 @@
-import { useState, useEffect } from "react";
-import { DollarSign, TrendingUp, TrendingDown, CreditCard, Download, Eye, Lock, Unlock, AlertTriangle, CheckCircle, XCircle, RefreshCw, Search, Filter } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { DollarSign, Eye, Lock, Unlock, AlertTriangle, CheckCircle, RefreshCw, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Input } from "../ui/input";
+import { Textarea } from "../ui/textarea";
 import {
   Select,
   SelectContent,
@@ -27,7 +44,6 @@ import {
   updateEscrowStatus,
   disputeEscrowJob,
   resolveEscrowDispute,
-  getDisputedEscrows,
   getAllDisputes,
   resolveDispute,
   EscrowJob,
@@ -43,7 +59,7 @@ export function FinancialManagement() {
   const [escrowJobs, setEscrowJobs] = useState<EscrowJob[]>([]);
   const [isLoadingEscrows, setIsLoadingEscrows] = useState(true);
   const [selectedEscrow, setSelectedEscrow] = useState<EscrowJob | null>(null);
-  const [escrowStatusFilter, setEscrowStatusFilter] = useState<"all" | "locked" | "released" | "disputed" | "releasing" | "refunded">("all");
+  const [escrowStatusFilter, setEscrowStatusFilter] = useState<string>("all");
   const [escrowPage, setEscrowPage] = useState(1);
   const [escrowPagination, setEscrowPagination] = useState({
     page: 1,
@@ -74,7 +90,7 @@ export function FinancialManagement() {
 
   // Fetch escrow jobs
   useEffect(() => {
-    if (activeTab === "escrow") {
+    if (activeTab === "escrow" || activeTab === "overview") {
       fetchEscrowJobs();
     }
   }, [activeTab, escrowPage, escrowStatusFilter]);
@@ -163,7 +179,7 @@ export function FinancialManagement() {
     }
   };
 
-  const handleUpdateEscrowStatus = async (escrowId: string, status: "released" | "locked" | "refunded") => {
+  const handleUpdateEscrowStatus = async (escrowId: string, status: string) => {
     setIsUpdatingStatus(true);
     try {
       const response = await updateEscrowStatus(escrowId, status);
@@ -297,18 +313,49 @@ export function FinancialManagement() {
 
   const statusBadge = (status: string) => {
     const variants: Record<string, string> = {
+      pending_payment: "bg-gray-100 text-gray-700 border-gray-200",
+      payment_processing: "bg-purple-100 text-purple-700 border-purple-200",
       locked: "bg-blue-100 text-blue-700 border-blue-200",
-      released: "bg-green-100 text-green-700 border-green-200",
-      disputed: "bg-red-100 text-red-700 border-red-200",
+      work_in_progress: "bg-cyan-100 text-cyan-700 border-cyan-200",
+      work_submitted: "bg-indigo-100 text-indigo-700 border-indigo-200",
+      under_review: "bg-amber-100 text-amber-700 border-amber-200",
+      approved: "bg-emerald-100 text-emerald-700 border-emerald-200",
       releasing: "bg-yellow-100 text-yellow-700 border-yellow-200",
+      released: "bg-green-100 text-green-700 border-green-200",
+      refunding: "bg-orange-100 text-orange-700 border-orange-200",
       refunded: "bg-slate-100 text-slate-700 border-slate-200",
+      disputed: "bg-red-100 text-red-700 border-red-200",
     };
+    const displayName = status
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
     return (
       <Badge variant="outline" className={variants[status] || "bg-slate-100 text-slate-700 border-slate-200"}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {displayName}
       </Badge>
     );
   };
+
+  // Valid statuses from backend (no duplicates) - memoized to prevent re-creation
+  const validStatuses = useMemo(() => {
+    const statuses = [
+      "pending_payment",
+      "payment_processing",
+      "locked",
+      "work_in_progress",
+      "work_submitted",
+      "under_review",
+      "approved",
+      "releasing",
+      "released",
+      "refunding",
+      "refunded",
+      "disputed",
+    ];
+    // Remove duplicates using Set
+    return Array.from(new Set(statuses));
+  }, []);
 
   // Calculate stats
   const escrowStats = {
@@ -316,8 +363,63 @@ export function FinancialManagement() {
     locked: escrowJobs.filter((e) => e.status === "locked").length,
     released: escrowJobs.filter((e) => e.status === "released").length,
     disputed: escrowJobs.filter((e) => e.status === "disputed").length,
+    refunded: escrowJobs.filter((e) => e.status === "refunded").length,
+    refunding: escrowJobs.filter((e) => e.status === "refunding").length,
+    releasing: escrowJobs.filter((e) => e.status === "releasing").length,
     totalAmount: escrowJobs.reduce((sum, e) => sum + (e.amount || 0), 0),
+    lockedAmount: escrowJobs.filter((e) => e.status === "locked").reduce((sum, e) => sum + (e.amount || 0), 0),
+    releasedAmount: escrowJobs.filter((e) => e.status === "released").reduce((sum, e) => sum + (e.amount || 0), 0),
+    disputedAmount: escrowJobs.filter((e) => e.status === "disputed").reduce((sum, e) => sum + (e.amount || 0), 0),
   };
+
+  // Chart data for status distribution
+  const statusDistributionData = useMemo(() => {
+    const statusCounts: Record<string, number> = {};
+    validStatuses.forEach((status) => {
+      statusCounts[status] = escrowJobs.filter((e) => e.status === status).length;
+    });
+    return Object.entries(statusCounts)
+      .filter(([_, count]) => count > 0)
+      .map(([status, count]) => ({
+        name: status.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+        value: count,
+        status,
+      }));
+  }, [escrowJobs, validStatuses]);
+
+  // Chart data for amount by status
+  const amountByStatusData = useMemo(() => {
+    const statusAmounts: Record<string, number> = {};
+    validStatuses.forEach((status) => {
+      statusAmounts[status] = escrowJobs
+        .filter((e) => e.status === status)
+        .reduce((sum, e) => sum + (e.amount || 0), 0);
+    });
+    return Object.entries(statusAmounts)
+      .filter(([_, amount]) => amount > 0)
+      .map(([status, amount]) => ({
+        name: status.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+        amount: amount,
+        status,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [escrowJobs, validStatuses]);
+
+  // Chart colors
+  const CHART_COLORS = [
+    "#3b82f6", // blue
+    "#10b981", // green
+    "#f59e0b", // amber
+    "#ef4444", // red
+    "#8b5cf6", // purple
+    "#ec4899", // pink
+    "#06b6d4", // cyan
+    "#84cc16", // lime
+    "#f97316", // orange
+    "#6366f1", // indigo
+    "#14b8a6", // teal
+    "#64748b", // slate
+  ];
 
   // Escrow Jobs Columns
   const escrowColumns = [
@@ -459,37 +561,194 @@ export function FinancialManagement() {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
+          {isLoadingEscrows ? (
+            <div className="p-8 text-center text-slate-500">
+              Loading financial data...
+            </div>
+          ) : (
+            <>
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-              label="Total Escrow Amount"
-              value={formatCurrency(escrowStats.totalAmount)}
-              change=""
-          trend="up"
+          label="Total Escrow Amount"
+          value={formatCurrency(escrowStats.totalAmount)}
           icon={DollarSign}
         />
         <StatCard
-              label="Locked Escrows"
-              value={escrowStats.locked.toString()}
-              change=""
-          trend="up"
-              icon={Lock}
+          label="Locked Escrows"
+          value={escrowStats.locked.toString()}
+          icon={Lock}
         />
         <StatCard
-              label="Released Escrows"
-              value={escrowStats.released.toString()}
-              change=""
-              trend="up"
-              icon={Unlock}
+          label="Released Escrows"
+          value={escrowStats.released.toString()}
+          icon={Unlock}
         />
         <StatCard
-              label="Disputed Escrows"
-              value={escrowStats.disputed.toString()}
-              change=""
-              trend="down"
-              icon={AlertTriangle}
+          label="Disputed Escrows"
+          value={escrowStats.disputed.toString()}
+          icon={AlertTriangle}
         />
-      </div>
+              </div>
+
+              {/* Additional Stats Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard
+                  label="Locked Amount"
+                  value={formatCurrency(escrowStats.lockedAmount)}
+                  icon={Lock}
+                />
+                <StatCard
+                  label="Released Amount"
+                  value={formatCurrency(escrowStats.releasedAmount)}
+                  icon={Unlock}
+                />
+                <StatCard
+                  label="Disputed Amount"
+                  value={formatCurrency(escrowStats.disputedAmount)}
+                  icon={AlertTriangle}
+                />
+                <StatCard
+                  label="Total Escrows"
+                  value={escrowStats.total.toString()}
+                  icon={DollarSign}
+                />
+              </div>
+
+              {/* Charts Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Status Distribution Pie Chart */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Escrow Status Distribution</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {statusDistributionData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={statusDistributionData}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                          >
+                            {statusDistributionData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-[300px] flex items-center justify-center text-slate-500">
+                        No data available for chart
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Amount by Status Bar Chart */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Amount by Status</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {amountByStatusData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={amountByStatusData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="name"
+                            angle={-45}
+                            textAnchor="end"
+                            height={100}
+                            interval={0}
+                            fontSize={12}
+                          />
+                          <YAxis />
+                          <Tooltip
+                            formatter={(value: number) => formatCurrency(value)}
+                            contentStyle={{ backgroundColor: "#fff", border: "1px solid #e2e8f0" }}
+                          />
+                          <Legend />
+                          <Bar dataKey="amount" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                            {amountByStatusData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-[300px] flex items-center justify-center text-slate-500">
+                        No data available for chart
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Recent Escrow Jobs */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Escrow Jobs</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {escrowJobs.length > 0 ? (
+                    <div className="space-y-3">
+                      {escrowJobs.slice(0, 5).map((escrow) => (
+                        <div
+                          key={escrow.id}
+                          className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer"
+                          onClick={() => {
+                            setSelectedEscrow(escrow);
+                            fetchEscrowDetails(escrow.id);
+                          }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-slate-100">
+                              <DollarSign className="h-4 w-4 text-slate-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-900">
+                                {formatCurrency(escrow.amount)}
+                              </p>
+                              <p className="text-xs text-slate-500 font-mono">
+                                {escrow.id.substring(0, 8)}...
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <p className="text-sm font-medium text-slate-900">
+                                {escrow.sponsor?.name || "Unknown"}
+                              </p>
+                              <p className="text-xs text-slate-500">Sponsor</p>
+                            </div>
+                            {statusBadge(escrow.status)}
+                            <Eye className="h-4 w-4 text-slate-400" />
+                          </div>
+                        </div>
+                      ))}
+                      {escrowJobs.length > 5 && (
+                        <p className="text-sm text-center text-slate-500 pt-2">
+                          Showing 5 of {escrowJobs.length} escrow jobs
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-slate-500">
+                      No escrow jobs found
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          )}
         </TabsContent>
 
         {/* Escrow Jobs Tab */}
@@ -504,11 +763,17 @@ export function FinancialManagement() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="locked">Locked</SelectItem>
-                    <SelectItem value="released">Released</SelectItem>
-                    <SelectItem value="disputed">Disputed</SelectItem>
-                    <SelectItem value="releasing">Releasing</SelectItem>
-                    <SelectItem value="refunded">Refunded</SelectItem>
+                    {validStatuses.map((status, index) => {
+                      const displayName = status
+                        .split("_")
+                        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                        .join(" ");
+                      return (
+                        <SelectItem key={`filter-status-${status}-${index}`} value={status}>
+                          {displayName}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
@@ -530,7 +795,14 @@ export function FinancialManagement() {
                   No escrow jobs found.
                 </div>
               ) : (
-                <DataTable columns={escrowColumns} data={escrowJobs} />
+                <DataTable
+                  columns={escrowColumns}
+                  data={escrowJobs}
+                  currentPage={escrowPagination.page}
+                  totalPages={escrowPagination.totalPages}
+                  onPageChange={setEscrowPage}
+                  emptyMessage="No escrow jobs found"
+                />
               )}
           </CardContent>
         </Card>
@@ -556,7 +828,14 @@ export function FinancialManagement() {
                   </p>
                 </div>
               ) : (
-                <DataTable columns={disputesColumns} data={disputes} />
+                <DataTable
+                  columns={disputesColumns}
+                  data={disputes}
+                  currentPage={disputesPagination.page}
+                  totalPages={disputesPagination.totalPages}
+                  onPageChange={setDisputesPage}
+                  emptyMessage="No disputes found"
+                />
               )}
         </CardContent>
       </Card>
@@ -590,7 +869,9 @@ export function FinancialManagement() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-slate-600 mb-1">Status</p>
-                  <div>{statusBadge(selectedEscrow.status)}</div>
+                  <div className="flex items-center gap-2">
+                    {statusBadge(selectedEscrow.status)}
+                  </div>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-slate-600 mb-1">Sponsor</p>
@@ -637,9 +918,49 @@ export function FinancialManagement() {
                 )}
               </div>
 
+              {/* Change Status */}
+              <div className="pt-4 border-t">
+                <p className="text-sm font-medium text-slate-600 mb-3">Change Status</p>
+                <div className="flex items-center gap-3">
+                  <Select
+                    value={selectedEscrow.status}
+                    onValueChange={(newStatus) => {
+                      const displayName = newStatus
+                        .split("_")
+                        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                        .join(" ");
+                      if (window.confirm(`Are you sure you want to change status to "${displayName}"?`)) {
+                        handleUpdateEscrowStatus(selectedEscrow.id, newStatus);
+                      }
+                    }}
+                    disabled={isUpdatingStatus}
+                  >
+                    <SelectTrigger className="w-full max-w-xs">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {validStatuses.map((status, index) => {
+                        const displayName = status
+                          .split("_")
+                          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                          .join(" ");
+                        return (
+                          <SelectItem key={`status-${status}-${index}`} value={status}>
+                            {displayName}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  {isUpdatingStatus && (
+                    <span className="text-sm text-slate-500">Updating...</span>
+                  )}
+                </div>
+              </div>
+
               {/* Actions */}
               <div className="pt-4 border-t">
-                <p className="text-sm font-medium text-slate-600 mb-3">Actions</p>
+                <p className="text-sm font-medium text-slate-600 mb-3">Quick Actions</p>
                 <div className="flex flex-wrap gap-2">
                   {selectedEscrow.status === "locked" && (
                     <Button
@@ -657,7 +978,7 @@ export function FinancialManagement() {
                       {isUpdatingStatus ? "Updating..." : "Release Escrow"}
                     </Button>
                   )}
-                  {selectedEscrow.status !== "disputed" && selectedEscrow.status !== "released" && (
+                  {selectedEscrow.status === "locked" && (
                     <Button
                       type="button"
                       variant="outline"
@@ -707,12 +1028,12 @@ export function FinancialManagement() {
               <label htmlFor="disputeReason" className="text-sm font-medium text-slate-700 mb-2 block">
                 Reason
               </label>
-              <textarea
+              <Textarea
                 id="disputeReason"
                 value={disputeReason}
                 onChange={(e) => setDisputeReason(e.target.value)}
                 placeholder="e.g., Work not delivered as promised, Quality issues..."
-                className="w-full min-h-[100px] px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="min-h-[100px]"
                 disabled={isDisputing}
               />
             </div>
@@ -774,12 +1095,12 @@ export function FinancialManagement() {
               <label htmlFor="resolveReason" className="text-sm font-medium text-slate-700 mb-2 block">
                 Resolution Reason
               </label>
-              <textarea
+              <Textarea
                 id="resolveReason"
                 value={resolveReason}
                 onChange={(e) => setResolveReason(e.target.value)}
                 placeholder="e.g., Work approved after review, Issue resolved..."
-                className="w-full min-h-[100px] px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="min-h-[100px]"
                 disabled={isResolving}
               />
             </div>
@@ -888,14 +1209,10 @@ export function FinancialManagement() {
 function StatCard({
   label,
   value,
-  change,
-  trend,
   icon: Icon,
 }: {
   label: string;
   value: string;
-  change: string;
-  trend: "up" | "down";
   icon: any;
 }) {
   return (
@@ -904,12 +1221,7 @@ function StatCard({
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm text-slate-600">{label}</p>
-            <p className="text-slate-900 mt-1">{value}</p>
-            {change && (
-            <p className={`text-xs mt-2 ${trend === "up" ? "text-green-600" : "text-red-600"}`}>
-              {change} vs last month
-            </p>
-            )}
+            <p className="text-slate-900 mt-1 text-lg font-semibold">{value}</p>
           </div>
           <div className="p-3 rounded-lg bg-slate-100 text-slate-700">
             <Icon className="h-5 w-5" />

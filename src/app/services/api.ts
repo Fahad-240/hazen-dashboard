@@ -1872,7 +1872,7 @@ export interface UpdateEscrowStatusResponse {
 
 export async function updateEscrowStatus(
   escrowId: string,
-  status: "released" | "locked" | "refunded"
+  status: string
 ): Promise<UpdateEscrowStatusResponse> {
   try {
     const token = getToken();
