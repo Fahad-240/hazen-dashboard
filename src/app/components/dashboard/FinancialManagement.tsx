@@ -1,66 +1,436 @@
-import { DollarSign, TrendingUp, TrendingDown, CreditCard, Download } from "lucide-react";
+import { useState, useEffect } from "react";
+import { DollarSign, TrendingUp, TrendingDown, CreditCard, Download, Eye, Lock, Unlock, AlertTriangle, CheckCircle, XCircle, RefreshCw, Search, Filter } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Input } from "../ui/input";
 import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "../ui/dialog";
 import { DataTable } from "../shared/DataTable";
-
-const revenueData: Array<{ month: string; revenue: number; commissions: number; payouts: number }> = [];
-
-const transactions: Array<{
-  id: string;
-  type: string;
-  user: string;
-  amount: string;
-  fee: string;
-  status: string;
-  date: string;
-}> = [];
+import { useAuth } from "../../context/AuthContext";
+import {
+  getEscrowJobs,
+  getEscrowJobById,
+  updateEscrowStatus,
+  disputeEscrowJob,
+  resolveEscrowDispute,
+  getDisputedEscrows,
+  getAllDisputes,
+  resolveDispute,
+  EscrowJob,
+  Dispute,
+} from "../../services/api";
+import { toast } from "sonner";
 
 export function FinancialManagement() {
-  const columns = [
+  const { isSuperAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState("overview");
+  
+  // Escrow Jobs State
+  const [escrowJobs, setEscrowJobs] = useState<EscrowJob[]>([]);
+  const [isLoadingEscrows, setIsLoadingEscrows] = useState(true);
+  const [selectedEscrow, setSelectedEscrow] = useState<EscrowJob | null>(null);
+  const [escrowStatusFilter, setEscrowStatusFilter] = useState<"all" | "locked" | "released" | "disputed" | "releasing" | "refunded">("all");
+  const [escrowPage, setEscrowPage] = useState(1);
+  const [escrowPagination, setEscrowPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [disputeReason, setDisputeReason] = useState("");
+  const [isDisputing, setIsDisputing] = useState(false);
+  const [showResolveModal, setShowResolveModal] = useState(false);
+  const [resolveResolution, setResolveResolution] = useState<"release" | "refund">("release");
+  const [resolveReason, setResolveReason] = useState("");
+  const [isResolving, setIsResolving] = useState(false);
+
+  // Disputes State
+  const [disputes, setDisputes] = useState<Dispute[]>([]);
+  const [isLoadingDisputes, setIsLoadingDisputes] = useState(true);
+  const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
+  const [disputesPage, setDisputesPage] = useState(1);
+  const [disputesPagination, setDisputesPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
+
+  // Fetch escrow jobs
+  useEffect(() => {
+    if (activeTab === "escrow") {
+      fetchEscrowJobs();
+    }
+  }, [activeTab, escrowPage, escrowStatusFilter]);
+
+  // Fetch disputes
+  useEffect(() => {
+    if (activeTab === "disputes") {
+      fetchDisputes();
+    }
+  }, [activeTab, disputesPage]);
+
+  const fetchEscrowJobs = async () => {
+    setIsLoadingEscrows(true);
+    try {
+      const response = await getEscrowJobs({
+        page: escrowPage,
+        limit: 10,
+        status: escrowStatusFilter !== "all" ? escrowStatusFilter : undefined,
+      });
+
+      if (response.success && response.data) {
+        setEscrowJobs(response.data.escrowJobs || []);
+        if (response.data.pagination) {
+          setEscrowPagination(response.data.pagination);
+        }
+      } else {
+        const errorMsg = response.error || "Failed to fetch escrow jobs";
+        console.error("Escrow jobs error:", errorMsg);
+        toast.error(errorMsg, {
+          description: "Backend database error. Please contact support if this persists.",
+          duration: 5000,
+        });
+        setEscrowJobs([]);
+      }
+    } catch (error) {
+      console.error("Error fetching escrow jobs:", error);
+      toast.error("Failed to fetch escrow jobs. Please try again.");
+      setEscrowJobs([]);
+    } finally {
+      setIsLoadingEscrows(false);
+    }
+  };
+
+  const fetchEscrowDetails = async (escrowId: string) => {
+    try {
+      const response = await getEscrowJobById(escrowId);
+      if (response.success && response.data) {
+        setSelectedEscrow(response.data);
+      } else {
+        toast.error(response.error || "Failed to fetch escrow details");
+      }
+    } catch (error) {
+      console.error("Error fetching escrow details:", error);
+      toast.error("Failed to fetch escrow details");
+    }
+  };
+
+  const fetchDisputes = async () => {
+    setIsLoadingDisputes(true);
+    try {
+      const response = await getAllDisputes({
+        page: disputesPage,
+        limit: 10,
+      });
+
+      if (response.success && response.data) {
+        setDisputes(response.data.disputes || []);
+        if (response.data.pagination) {
+          setDisputesPagination(response.data.pagination);
+        }
+      } else {
+        const errorMsg = response.error || "Failed to fetch disputes";
+        console.error("Disputes error:", errorMsg);
+        toast.error(errorMsg, {
+          description: "Backend database error. Please contact support if this persists.",
+          duration: 5000,
+        });
+        setDisputes([]);
+      }
+    } catch (error) {
+      console.error("Error fetching disputes:", error);
+      toast.error("Failed to fetch disputes. Please try again.");
+      setDisputes([]);
+    } finally {
+      setIsLoadingDisputes(false);
+    }
+  };
+
+  const handleUpdateEscrowStatus = async (escrowId: string, status: "released" | "locked" | "refunded") => {
+    setIsUpdatingStatus(true);
+    try {
+      const response = await updateEscrowStatus(escrowId, status);
+
+      if (response.success) {
+        toast.success(response.message || "Escrow status updated successfully");
+        if (selectedEscrow && selectedEscrow.id === escrowId) {
+          fetchEscrowDetails(escrowId);
+        }
+        fetchEscrowJobs();
+      } else {
+        toast.error(response.error || "Failed to update escrow status");
+      }
+    } catch (error) {
+      console.error("Error updating escrow status:", error);
+      toast.error("Failed to update escrow status. Please try again.");
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleDisputeEscrow = async (escrowId: string, reason: string) => {
+    if (!reason.trim()) {
+      toast.error("Please provide a reason for disputing this escrow");
+      return;
+    }
+
+    setIsDisputing(true);
+    try {
+      const response = await disputeEscrowJob(escrowId, reason.trim());
+
+      if (response.success) {
+        toast.success(response.message || "Escrow disputed successfully");
+        setShowDisputeModal(false);
+        setDisputeReason("");
+        if (selectedEscrow && selectedEscrow.id === escrowId) {
+          fetchEscrowDetails(escrowId);
+        }
+        fetchEscrowJobs();
+      } else {
+        toast.error(response.error || "Failed to dispute escrow");
+      }
+    } catch (error) {
+      console.error("Error disputing escrow:", error);
+      toast.error("Failed to dispute escrow. Please try again.");
+    } finally {
+      setIsDisputing(false);
+    }
+  };
+
+  const handleResolveEscrowDispute = async (escrowId: string, resolution: "release" | "refund", reason: string) => {
+    if (!reason.trim()) {
+      toast.error("Please provide a resolution reason");
+      return;
+    }
+
+    setIsResolving(true);
+    try {
+      const response = await resolveEscrowDispute(escrowId, resolution, reason.trim());
+
+      if (response.success) {
+        toast.success(response.message || "Dispute resolved successfully");
+        setShowResolveModal(false);
+        setResolveReason("");
+        setResolveResolution("release");
+        if (selectedEscrow && selectedEscrow.id === escrowId) {
+          fetchEscrowDetails(escrowId);
+        }
+        fetchEscrowJobs();
+        fetchDisputes();
+      } else {
+        toast.error(response.error || "Failed to resolve dispute");
+      }
+    } catch (error) {
+      console.error("Error resolving dispute:", error);
+      toast.error("Failed to resolve dispute. Please try again.");
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
+  const handleResolveDispute = async (disputeId: string, resolution: "release" | "refund", reason: string) => {
+    if (!reason.trim()) {
+      toast.error("Please provide a resolution reason");
+      return;
+    }
+
+    setIsResolving(true);
+    try {
+      const response = await resolveDispute(disputeId, resolution, reason.trim());
+
+      if (response.success) {
+        toast.success(response.message || "Dispute resolved successfully");
+        setShowResolveModal(false);
+        setResolveReason("");
+        setResolveResolution("release");
+        setSelectedDispute(null);
+        fetchDisputes();
+        fetchEscrowJobs();
+      } else {
+        toast.error(response.error || "Failed to resolve dispute");
+      }
+    } catch (error) {
+      console.error("Error resolving dispute:", error);
+      toast.error("Failed to resolve dispute. Please try again.");
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
+  const formatCurrency = (amount: number | undefined) => {
+    if (!amount) return "-";
+    return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return "-";
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const statusBadge = (status: string) => {
+    const variants: Record<string, string> = {
+      locked: "bg-blue-100 text-blue-700 border-blue-200",
+      released: "bg-green-100 text-green-700 border-green-200",
+      disputed: "bg-red-100 text-red-700 border-red-200",
+      releasing: "bg-yellow-100 text-yellow-700 border-yellow-200",
+      refunded: "bg-slate-100 text-slate-700 border-slate-200",
+    };
+    return (
+      <Badge variant="outline" className={variants[status] || "bg-slate-100 text-slate-700 border-slate-200"}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </Badge>
+    );
+  };
+
+  // Calculate stats
+  const escrowStats = {
+    total: escrowPagination.total || 0,
+    locked: escrowJobs.filter((e) => e.status === "locked").length,
+    released: escrowJobs.filter((e) => e.status === "released").length,
+    disputed: escrowJobs.filter((e) => e.status === "disputed").length,
+    totalAmount: escrowJobs.reduce((sum, e) => sum + (e.amount || 0), 0),
+  };
+
+  // Escrow Jobs Columns
+  const escrowColumns = [
     {
       key: "id",
-      label: "Transaction ID",
-      render: (item: typeof transactions[0]) => (
-        <span className="font-mono text-sm font-medium">{item.id}</span>
+      label: "Escrow ID",
+      render: (escrow: EscrowJob) => (
+        <span className="font-mono text-sm font-medium">{escrow.id.substring(0, 8)}...</span>
       ),
     },
-    {
-      key: "type",
-      label: "Type",
-      render: (item: typeof transactions[0]) => <Badge variant="outline">{item.type}</Badge>,
-    },
-    { key: "user", label: "User" },
     {
       key: "amount",
       label: "Amount",
-      render: (item: typeof transactions[0]) => (
-        <span className="font-semibold text-slate-900">{item.amount}</span>
+      render: (escrow: EscrowJob) => (
+        <span className="font-semibold text-slate-900">{formatCurrency(escrow.amount)}</span>
       ),
     },
-    { key: "fee", label: "Fee" },
+    {
+      key: "sponsor",
+      label: "Sponsor",
+      render: (escrow: EscrowJob) => (
+        <span>{escrow.sponsor?.name || "Unknown"}</span>
+      ),
+    },
+    {
+      key: "influencer",
+      label: "Influencer",
+      render: (escrow: EscrowJob) => (
+        <span>{escrow.influencer?.name || "Unknown"}</span>
+      ),
+    },
     {
       key: "status",
       label: "Status",
-      render: (item: typeof transactions[0]) => (
-        <Badge variant={item.status === "Completed" ? "default" : "secondary"}>
-          {item.status}
-        </Badge>
+      render: (escrow: EscrowJob) => statusBadge(escrow.status),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (escrow: EscrowJob) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setSelectedEscrow(escrow);
+            fetchEscrowDetails(escrow.id);
+          }}
+          title="View Details"
+        >
+          <Eye className="h-4 w-4" />
+        </Button>
       ),
     },
-    { key: "date", label: "Date" },
+  ];
+
+  // Disputes Columns
+  const disputesColumns = [
+    {
+      key: "id",
+      label: "Dispute ID",
+      render: (dispute: Dispute) => (
+        <span className="font-mono text-sm font-medium">{dispute.id.substring(0, 8)}...</span>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (dispute: Dispute) => statusBadge(dispute.status),
+    },
+    {
+      key: "reason",
+      label: "Reason",
+      render: (dispute: Dispute) => (
+        <span className="text-sm">{dispute.dispute_reason || "-"}</span>
+      ),
+    },
+    {
+      key: "date",
+      label: "Disputed At",
+      render: (dispute: Dispute) => (
+        <span className="text-sm text-slate-600">{formatDate(dispute.disputed_at)}</span>
+      ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (dispute: Dispute) => (
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedDispute(dispute)}
+            title="View Details"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+          {isSuperAdmin && dispute.status === "disputed" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+              onClick={() => {
+                setSelectedDispute(dispute);
+                setShowResolveModal(true);
+              }}
+              title="Resolve Dispute"
+            >
+              <CheckCircle className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -69,105 +439,448 @@ export function FinancialManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-slate-900 mb-1">Financial Management</h1>
-          <p className="text-slate-600">Monitor revenue, transactions, and payouts</p>
+          <p className="text-slate-600">Monitor escrow, transactions, and disputes</p>
         </div>
-        <Button>
-          <Download className="mr-2 h-4 w-4" />
-          Export Report
+        <Button variant="outline" size="sm" onClick={() => {
+          if (activeTab === "escrow") fetchEscrowJobs();
+          if (activeTab === "disputes") fetchDisputes();
+        }}>
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Refresh
         </Button>
       </div>
 
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="escrow">Escrow Jobs</TabsTrigger>
+          <TabsTrigger value="disputes">Disputes</TabsTrigger>
+        </TabsList>
+
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6">
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Total Revenue"
-          value="$328,000"
-          change="+12.5%"
+              label="Total Escrow Amount"
+              value={formatCurrency(escrowStats.totalAmount)}
+              change=""
           trend="up"
           icon={DollarSign}
         />
         <StatCard
-          label="Total Commissions"
-          value="$16,400"
-          change="+8.2%"
+              label="Locked Escrows"
+              value={escrowStats.locked.toString()}
+              change=""
           trend="up"
-          icon={CreditCard}
+              icon={Lock}
         />
         <StatCard
-          label="Pending Payouts"
-          value="$45,200"
-          change="-3.1%"
-          trend="down"
-          icon={TrendingDown}
+              label="Released Escrows"
+              value={escrowStats.released.toString()}
+              change=""
+              trend="up"
+              icon={Unlock}
         />
         <StatCard
-          label="Net Profit"
-          value="$266,400"
-          change="+15.7%"
-          trend="up"
-          icon={TrendingUp}
+              label="Disputed Escrows"
+              value={escrowStats.disputed.toString()}
+              change=""
+              trend="down"
+              icon={AlertTriangle}
         />
       </div>
+        </TabsContent>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Escrow Jobs Tab */}
+        <TabsContent value="escrow" className="space-y-6">
+          {/* Filters */}
         <Card>
-          <CardHeader>
-            <CardTitle>Revenue Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="month" stroke="#64748b" fontSize={12} />
-                <YAxis stroke="#64748b" fontSize={12} />
-                <Tooltip />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#0ea5e9"
-                  strokeWidth={2}
-                  name="Revenue"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="commissions"
-                  stroke="#8b5cf6"
-                  strokeWidth={2}
-                  name="Commissions"
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <CardContent className="pt-6">
+              <div className="flex flex-col lg:flex-row gap-4">
+                <Select value={escrowStatusFilter} onValueChange={(value: any) => setEscrowStatusFilter(value)}>
+                  <SelectTrigger className="w-full lg:w-[200px]">
+                    <SelectValue placeholder="Filter by Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="locked">Locked</SelectItem>
+                    <SelectItem value="released">Released</SelectItem>
+                    <SelectItem value="disputed">Disputed</SelectItem>
+                    <SelectItem value="releasing">Releasing</SelectItem>
+                    <SelectItem value="refunded">Refunded</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
           </CardContent>
         </Card>
 
+          {/* Escrow Jobs Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Payout Trends</CardTitle>
+              <CardTitle>Escrow Jobs</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="month" stroke="#64748b" fontSize={12} />
-                <YAxis stroke="#64748b" fontSize={12} />
-                <Tooltip />
-                <Bar dataKey="payouts" fill="#0ea5e9" name="Payouts" />
-              </BarChart>
-            </ResponsiveContainer>
+            <CardContent className="p-0">
+              {isLoadingEscrows ? (
+                <div className="p-8 text-center text-slate-500">
+                  Loading escrow jobs...
+                </div>
+              ) : escrowJobs.length === 0 ? (
+                <div className="p-8 text-center text-slate-500">
+                  No escrow jobs found.
+                </div>
+              ) : (
+                <DataTable columns={escrowColumns} data={escrowJobs} />
+              )}
           </CardContent>
         </Card>
-      </div>
+        </TabsContent>
 
-      {/* Transactions */}
+        {/* Disputes Tab */}
+        <TabsContent value="disputes" className="space-y-6">
+          {/* Disputes Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Transactions</CardTitle>
+              <CardTitle>All Disputes</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <DataTable columns={columns} data={transactions} />
+              {isLoadingDisputes ? (
+                <div className="p-8 text-center text-slate-500">
+                  Loading disputes...
+                </div>
+              ) : disputes.length === 0 ? (
+                <div className="p-8 text-center">
+                  <p className="text-slate-500 mb-2">No disputes found.</p>
+                  <p className="text-xs text-slate-400">
+                    If you're seeing an error, it may be a backend database issue. Please check the console for details.
+                  </p>
+                </div>
+              ) : (
+                <DataTable columns={disputesColumns} data={disputes} />
+              )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Escrow Detail Modal */}
+      <Dialog open={!!selectedEscrow} onOpenChange={() => setSelectedEscrow(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Escrow Job Details</DialogTitle>
+            <DialogDescription>
+              View and manage escrow job information
+            </DialogDescription>
+          </DialogHeader>
+          {selectedEscrow && (
+            <div className="space-y-6">
+              <div>
+                <p className="font-mono text-sm text-slate-500">{selectedEscrow.id}</p>
+                <div className="mt-4">
+                  {statusBadge(selectedEscrow.status)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                <div>
+                  <p className="text-sm font-medium text-slate-600 mb-1">Amount</p>
+                  <p className="text-lg font-semibold text-slate-900">
+                    {formatCurrency(selectedEscrow.amount)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-600 mb-1">Status</p>
+                  <div>{statusBadge(selectedEscrow.status)}</div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-600 mb-1">Sponsor</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    {selectedEscrow.sponsor?.name || "Unknown"}
+                  </p>
+                  {selectedEscrow.sponsor?.email && (
+                    <p className="text-xs text-slate-500">{selectedEscrow.sponsor.email}</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-600 mb-1">Influencer</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    {selectedEscrow.influencer?.name || "Unknown"}
+                  </p>
+                  {selectedEscrow.influencer?.email && (
+                    <p className="text-xs text-slate-500">{selectedEscrow.influencer.email}</p>
+                  )}
+                </div>
+                {selectedEscrow.dispute_reason && (
+                  <div className="col-span-2">
+                    <p className="text-sm font-medium text-slate-600 mb-1">Dispute Reason</p>
+                    <p className="text-sm text-slate-900 bg-red-50 p-2 rounded">
+                      {selectedEscrow.dispute_reason}
+                    </p>
+                  </div>
+                )}
+                {selectedEscrow.disputed_at && (
+                  <div>
+                    <p className="text-sm font-medium text-slate-600 mb-1">Disputed At</p>
+                    <p className="text-sm text-slate-900">{formatDate(selectedEscrow.disputed_at)}</p>
+                  </div>
+                )}
+                {selectedEscrow.dispute_resolution && (
+                  <div className="col-span-2">
+                    <p className="text-sm font-medium text-slate-600 mb-1">Resolution</p>
+                    <p className="text-sm font-medium text-slate-900">
+                      {selectedEscrow.dispute_resolution === "release" ? "Release to Influencer" : "Refund to Sponsor"}
+                    </p>
+                    {selectedEscrow.dispute_resolution_reason && (
+                      <p className="text-xs text-slate-600 mt-1">{selectedEscrow.dispute_resolution_reason}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="pt-4 border-t">
+                <p className="text-sm font-medium text-slate-600 mb-3">Actions</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedEscrow.status === "locked" && (
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => {
+                        if (window.confirm("Are you sure you want to release this escrow?")) {
+                          handleUpdateEscrowStatus(selectedEscrow.id, "released");
+                        }
+                      }}
+                      disabled={isUpdatingStatus}
+                    >
+                      {isUpdatingStatus ? "Updating..." : "Release Escrow"}
+                    </Button>
+                  )}
+                  {selectedEscrow.status !== "disputed" && selectedEscrow.status !== "released" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-red-300 text-red-700 hover:bg-red-50"
+                      onClick={() => {
+                        setShowDisputeModal(true);
+                      }}
+                    >
+                      <AlertTriangle className="mr-2 h-4 w-4" />
+                      Dispute Escrow
+                    </Button>
+                  )}
+                  {selectedEscrow.status === "disputed" && isSuperAdmin && (
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700"
+                      onClick={() => {
+                        setShowResolveModal(true);
+                      }}
+                      disabled={isResolving}
+                    >
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Resolve Dispute
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dispute Modal */}
+      <Dialog open={showDisputeModal} onOpenChange={setShowDisputeModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Dispute Escrow</DialogTitle>
+            <DialogDescription>
+              Provide a reason for disputing this escrow job.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="disputeReason" className="text-sm font-medium text-slate-700 mb-2 block">
+                Reason
+              </label>
+              <textarea
+                id="disputeReason"
+                value={disputeReason}
+                onChange={(e) => setDisputeReason(e.target.value)}
+                placeholder="e.g., Work not delivered as promised, Quality issues..."
+                className="w-full min-h-[100px] px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                disabled={isDisputing}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowDisputeModal(false);
+                  setDisputeReason("");
+                }}
+                disabled={isDisputing}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="default"
+                className="bg-red-600 hover:bg-red-700"
+                onClick={() => {
+                  if (selectedEscrow) {
+                    handleDisputeEscrow(selectedEscrow.id, disputeReason);
+                  }
+                }}
+                disabled={isDisputing || !disputeReason.trim()}
+              >
+                {isDisputing ? "Disputing..." : "Dispute Escrow"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Resolve Dispute Modal */}
+      <Dialog open={showResolveModal} onOpenChange={setShowResolveModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Resolve Dispute</DialogTitle>
+            <DialogDescription>
+              {selectedEscrow ? "Resolve this escrow dispute" : "Resolve this dispute"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="resolveResolution" className="text-sm font-medium text-slate-700 mb-2 block">
+                Resolution
+              </label>
+              <Select value={resolveResolution} onValueChange={(value: "release" | "refund") => setResolveResolution(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="release">Release to Influencer</SelectItem>
+                  <SelectItem value="refund">Refund to Sponsor</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label htmlFor="resolveReason" className="text-sm font-medium text-slate-700 mb-2 block">
+                Resolution Reason
+              </label>
+              <textarea
+                id="resolveReason"
+                value={resolveReason}
+                onChange={(e) => setResolveReason(e.target.value)}
+                placeholder="e.g., Work approved after review, Issue resolved..."
+                className="w-full min-h-[100px] px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                disabled={isResolving}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowResolveModal(false);
+                  setResolveReason("");
+                  setResolveResolution("release");
+                }}
+                disabled={isResolving}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="default"
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={() => {
+                  if (selectedEscrow) {
+                    handleResolveEscrowDispute(selectedEscrow.id, resolveResolution, resolveReason);
+                  } else if (selectedDispute) {
+                    handleResolveDispute(selectedDispute.id, resolveResolution, resolveReason);
+                  }
+                }}
+                disabled={isResolving || !resolveReason.trim()}
+              >
+                {isResolving ? "Resolving..." : "Resolve Dispute"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dispute Detail Modal */}
+      <Dialog open={!!selectedDispute} onOpenChange={() => setSelectedDispute(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Dispute Details</DialogTitle>
+            <DialogDescription>
+              View dispute information
+            </DialogDescription>
+          </DialogHeader>
+          {selectedDispute && (
+            <div className="space-y-6">
+              <div>
+                <p className="font-mono text-sm text-slate-500">{selectedDispute.id}</p>
+                <div className="mt-4">
+                  {statusBadge(selectedDispute.status)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                <div>
+                  <p className="text-sm font-medium text-slate-600 mb-1">Status</p>
+                  <div>{statusBadge(selectedDispute.status)}</div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-600 mb-1">Disputed At</p>
+                  <p className="text-sm text-slate-900">{formatDate(selectedDispute.disputed_at)}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm font-medium text-slate-600 mb-1">Dispute Reason</p>
+                  <p className="text-sm text-slate-900 bg-red-50 p-2 rounded">
+                    {selectedDispute.dispute_reason || "-"}
+                  </p>
+                </div>
+                {selectedDispute.dispute_resolution && (
+                  <div className="col-span-2">
+                    <p className="text-sm font-medium text-slate-600 mb-1">Resolution</p>
+                    <p className="text-sm font-medium text-slate-900">
+                      {selectedDispute.dispute_resolution === "release" ? "Release to Influencer" : "Refund to Sponsor"}
+                    </p>
+                    {selectedDispute.dispute_resolution_reason && (
+                      <p className="text-xs text-slate-600 mt-1">{selectedDispute.dispute_resolution_reason}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {isSuperAdmin && selectedDispute.status === "disputed" && (
+                <div className="pt-4 border-t">
+                  <Button
+                    type="button"
+                    variant="default"
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    onClick={() => {
+                      setShowResolveModal(true);
+                    }}
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Resolve Dispute
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -192,9 +905,11 @@ function StatCard({
           <div>
             <p className="text-sm text-slate-600">{label}</p>
             <p className="text-slate-900 mt-1">{value}</p>
+            {change && (
             <p className={`text-xs mt-2 ${trend === "up" ? "text-green-600" : "text-red-600"}`}>
               {change} vs last month
             </p>
+            )}
           </div>
           <div className="p-3 rounded-lg bg-slate-100 text-slate-700">
             <Icon className="h-5 w-5" />

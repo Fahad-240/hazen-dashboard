@@ -57,8 +57,19 @@ export function AuthProvider({
   refreshUser?: () => Promise<void>;
 }) {
   const permissions = user ? getPermissionsForRole(user.role) : DEFAULT_PERMISSIONS;
-  const isSuperAdmin = user?.role === "superadmin";
-  const isAdmin = user?.role === "admin";
+  
+  // Check if user is super admin - handle different role formats
+  const userRole = user?.role?.toLowerCase()?.trim() || "";
+  const userEmail = user?.email?.toLowerCase()?.trim() || "";
+  
+  const isSuperAdmin = 
+    userRole === "superadmin" || 
+    userRole === "super_admin" ||
+    userEmail === "admin@sourceimpact.com" ||
+    userEmail === "superadmin@sourceimpact.com" ||
+    userEmail.includes("superadmin");
+  
+  const isAdmin = userRole === "admin" || isSuperAdmin;
 
   return (
     <AuthContext.Provider value={{ user, permissions, isSuperAdmin, isAdmin, refreshUser }}>

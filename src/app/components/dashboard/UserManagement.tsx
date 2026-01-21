@@ -8,6 +8,8 @@ import {
   CircleCheck,
   CircleX,
   ShieldCheck,
+  Trash2,
+  History,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { Card, CardContent } from "../ui/card";
@@ -43,8 +45,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
-import { getUsersList } from "../../services/api";
+import { getUsersList, updateUserRole, banUser, unbanUser, deleteUser, getUserModerationHistory, ModerationHistoryItem } from "../../services/api";
 import { toast } from "sonner";
+import { Textarea } from "../ui/textarea";
+import { Label } from "../ui/label";
 
 interface User {
   id: string;
@@ -57,10 +61,12 @@ interface User {
   deals: number;
   spent: string;
   is_active?: boolean;
+  banned_at?: string | null;
+  ban_reason?: string;
 }
 
 export function UserManagement() {
-  const { permissions, isSuperAdmin } = useAuth();
+  const { permissions, isSuperAdmin, user: authUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -70,17 +76,32 @@ export function UserManagement() {
   const [isSuspending, setIsSuspending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isUnverifying, setIsUnverifying] = useState(false);
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [isBanning, setIsBanning] = useState(false);
+  const [isUnbanning, setIsUnbanning] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showBanModal, setShowBanModal] = useState(false);
+  const [banReason, setBanReason] = useState("");
+  const [moderationHistory, setModerationHistory] = useState<ModerationHistoryItem[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   // Fetch users on component mount
   useEffect(() => {
     fetchUsers();
   }, []);
 
+  // Handle opening history modal
+  const handleOpenHistoryModal = async (userId: string) => {
+    setShowHistoryModal(true);
+    await fetchModerationHistory(userId);
+  };
+
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
       const response = await getUsersList({
-        role: roleFilter !== "all" ? roleFilter : undefined,
+        role: roleFilter !== "all" ? roleFilter.toLowerCase() : undefined,
         status: statusFilter !== "all" ? statusFilter : undefined,
         search: searchQuery || undefined,
       });
@@ -92,13 +113,16 @@ export function UserManagement() {
           name: user.name || user.email?.split("@")[0] || "Unknown",
           email: user.email,
           role: user.role || "User",
-          status: user.is_active === false ? "Suspended" : user.status || "Active",
+          status: user.banned_at ? "Banned" : (user.is_active === false ? "Suspended" : user.status || "Active"),
           verified: user.verified || user.email_verified || false,
           joinDate: user.created_at 
             ? new Date(user.created_at).toISOString().split("T")[0] 
             : new Date().toISOString().split("T")[0],
           deals: user.deals || 0,
           spent: user.spent ? `$${user.spent}` : "$0",
+          is_active: user.is_active,
+          banned_at: user.banned_at || null,
+          ban_reason: user.ban_reason || null,
         }));
         setUsers(mappedUsers);
       } else {
@@ -125,7 +149,7 @@ export function UserManagement() {
     const matchesSearch =
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === "all" || user.role === roleFilter;
+    const matchesRole = roleFilter === "all" || user.role?.toLowerCase() === roleFilter.toLowerCase();
     const matchesStatus = statusFilter === "all" || user.status === statusFilter;
     return matchesSearch && matchesRole && matchesStatus;
   });
@@ -377,6 +401,194 @@ export function UserManagement() {
     }
   };
 
+  const handleUpdateUserRole = async (userId: string, newRole: string) => {
+    if (!window.confirm(`Kya aap is user ki role "${newRole}" me change karna chahte hain?`)) {
+      return;
+    }
+
+    setIsUpdatingRole(true);
+    try {
+      const response = await updateUserRole(userId, newRole);
+
+      if (response.success) {
+        toast.success(response.message || "User role updated successfully");
+        
+        // Update selectedUser state if modal is open
+        if (selectedUser && selectedUser.id === userId) {
+          setSelectedUser({
+            ...selectedUser,
+            role: newRole
+          });
+        }
+        
+        fetchUsers(); // Refresh users list
+      } else {
+        toast.error(response.error || "Failed to update user role");
+      }
+    } catch (error) {
+      console.error("Update user role error:", error);
+      toast.error("Failed to update user role. Please try again.");
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
+
+  const handleBanUser = async () => {
+    if (!selectedUser) return;
+    
+    if (!banReason.trim()) {
+      toast.error("Please provide a reason for banning the user");
+      return;
+    }
+
+    setIsBanning(true);
+    try {
+      const response = await banUser(selectedUser.id, banReason.trim());
+
+      if (response.success) {
+        toast.success(response.message || "User banned successfully");
+        setShowBanModal(false);
+        setBanReason("");
+        setSelectedUser(null);
+        fetchUsers(); // Refresh users list
+      } else {
+        toast.error(response.error || "Failed to ban user");
+      }
+    } catch (error) {
+      console.error("Ban user error:", error);
+      toast.error("Failed to ban user. Please try again.");
+    } finally {
+      setIsBanning(false);
+    }
+  };
+
+  const handleUnbanUser = async (userId: string) => {
+    // Check if user has permission to unban
+    const userRole = authUser?.role?.toLowerCase()?.trim() || "";
+    const userEmail = authUser?.email?.toLowerCase()?.trim() || "";
+    
+    // Check if email contains "superadmin" or matches known superadmin emails
+    const isSuperAdminEmail = userEmail.includes("superadmin") || 
+                             userEmail === "admin@sourceimpact.com";
+    
+    const canUnban = isSuperAdmin || 
+                    permissions.ban_users || 
+                    userRole === "superadmin" ||
+                    userRole === "super_admin" ||
+                    userRole === "super admin" ||
+                    (userRole === "admin" && isSuperAdminEmail) ||
+                    isSuperAdminEmail;
+    
+    if (!canUnban) {
+      console.log("Unban permission check failed:", { 
+        isSuperAdmin, 
+        ban_users: permissions.ban_users, 
+        userRole, 
+        userEmail,
+        isSuperAdminEmail
+      });
+      toast.error("Only Super Admin can unban users");
+      return;
+    }
+
+    if (!window.confirm("Kya aap is user ko unban karna chahte hain?")) {
+      return;
+    }
+
+    setIsUnbanning(true);
+    try {
+      const response = await unbanUser(userId);
+
+      if (response.success) {
+        toast.success(response.message || "User unbanned successfully");
+        setSelectedUser(null);
+        fetchUsers(); // Refresh users list
+      } else {
+        toast.error(response.error || "Failed to unban user");
+      }
+    } catch (error) {
+      console.error("Unban user error:", error);
+      toast.error("Failed to unban user. Please try again.");
+    } finally {
+      setIsUnbanning(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    // Check if user has permission to delete
+    const userRole = authUser?.role?.toLowerCase()?.trim() || "";
+    const userEmail = authUser?.email?.toLowerCase()?.trim() || "";
+    
+    // Check if email contains "superadmin" or matches known superadmin emails
+    const isSuperAdminEmail = userEmail.includes("superadmin") || 
+                             userEmail === "admin@sourceimpact.com";
+    
+    const canDelete = isSuperAdmin || 
+                     permissions.delete_users || 
+                     userRole === "superadmin" ||
+                     userRole === "super_admin" ||
+                     userRole === "super admin" ||
+                     (userRole === "admin" && isSuperAdminEmail) ||
+                     isSuperAdminEmail;
+    
+    if (!canDelete) {
+      console.log("Delete permission check failed:", { 
+        isSuperAdmin, 
+        delete_users: permissions.delete_users, 
+        userRole, 
+        userEmail,
+        isSuperAdminEmail
+      });
+      toast.error("Only Super Admin can delete users");
+      return;
+    }
+
+    if (!window.confirm("Kya aap is user ko permanently delete karna chahte hain? Yeh action undo nahi ho sakta.")) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      console.log("Deleting user with ID:", userId);
+      const response = await deleteUser(userId);
+      console.log("Delete user response:", response);
+
+      if (response.success) {
+        toast.success(response.message || "User deleted successfully");
+        setSelectedUser(null);
+        // Wait a bit before refreshing to ensure backend has processed
+        setTimeout(() => {
+          fetchUsers(); // Refresh users list
+        }, 500);
+      } else {
+        console.error("Delete failed:", response.error);
+        toast.error(response.error || "Failed to delete user");
+      }
+    } catch (error) {
+      console.error("Delete user error:", error);
+      toast.error("Failed to delete user. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const fetchModerationHistory = async (userId: string) => {
+    setIsLoadingHistory(true);
+    try {
+      const response = await getUserModerationHistory(userId);
+      if (response.success && response.data?.moderationHistory) {
+        setModerationHistory(response.data.moderationHistory);
+      } else {
+        setModerationHistory([]);
+      }
+    } catch (error) {
+      console.error("Error fetching moderation history:", error);
+      setModerationHistory([]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
   const handleExportUsers = () => {
     // Create CSV content
     const headers = ["ID", "Name", "Email", "Role", "Status", "Verified", "Join Date", "Deals", "Spent"];
@@ -430,9 +642,10 @@ export function UserManagement() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {(() => {
           const totalUsers = users.length;
-          const activeUsers = users.filter(u => u.status === "Active" || u.is_active !== false).length;
-          const pendingUsers = users.filter(u => u.verified === false && u.status !== "Suspended").length;
-          const suspendedUsers = users.filter(u => u.status === "Suspended" || u.is_active === false).length;
+          const activeUsers = users.filter(u => u.status === "Active" && !u.banned_at).length;
+          const pendingUsers = users.filter(u => u.verified === false && u.status !== "Suspended" && !u.banned_at).length;
+          const suspendedUsers = users.filter(u => u.status === "Suspended" || (u.is_active === false && !u.banned_at)).length;
+          const bannedUsers = users.filter(u => u.banned_at || u.status === "Banned").length;
           
           const activePercentage = totalUsers > 0 ? ((activeUsers / totalUsers) * 100).toFixed(1) : "0";
           const pendingPercentage = totalUsers > 0 ? ((pendingUsers / totalUsers) * 100).toFixed(1) : "0";
@@ -464,6 +677,12 @@ export function UserManagement() {
                 badge={`${suspendedPercentage}%`} 
                 badgeVariant="destructive" 
               />
+              <StatCard 
+                label="Banned Users" 
+                value={bannedUsers.toLocaleString()} 
+                badge={bannedUsers > 0 ? `${((bannedUsers / totalUsers) * 100).toFixed(1)}%` : "0%"} 
+                badgeVariant="destructive" 
+              />
             </>
           );
         })()}
@@ -488,9 +707,9 @@ export function UserManagement() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="Buyer">Buyers</SelectItem>
-                <SelectItem value="Seller">Sellers</SelectItem>
-                <SelectItem value="Agent">Agents</SelectItem>
+                <SelectItem value="agent">Agents</SelectItem>
+                <SelectItem value="sponsor">Sponsors</SelectItem>
+                <SelectItem value="influencer">Influencers</SelectItem>
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -502,6 +721,7 @@ export function UserManagement() {
                 <SelectItem value="Active">Active</SelectItem>
                 <SelectItem value="Pending">Pending</SelectItem>
                 <SelectItem value="Suspended">Suspended</SelectItem>
+                <SelectItem value="Banned">Banned</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -571,6 +791,7 @@ export function UserManagement() {
                             ? "secondary"
                             : "destructive"
                         }
+                        className={user.status === "Banned" ? "bg-red-600 text-white hover:bg-red-700" : ""}
                       >
                         {user.status}
                       </Badge>
@@ -618,6 +839,42 @@ export function UserManagement() {
                               {user.status === "Suspended" || user.is_active === false ? "Activate User" : "Suspend User"}
                             </DropdownMenuItem>
                           )}
+                          {/* Delete User Button - For Super Admin */}
+                          <DropdownMenuItem 
+                            onClick={() => {
+                              // Check permission before allowing delete
+                              const userRole = authUser?.role?.toLowerCase()?.trim() || "";
+                              const userEmail = authUser?.email?.toLowerCase()?.trim() || "";
+                              const isSuperAdminEmail = userEmail.includes("superadmin") || 
+                                                       userEmail === "admin@sourceimpact.com";
+                              const canDelete = isSuperAdmin || 
+                                               permissions.delete_users || 
+                                               userRole === "superadmin" ||
+                                               userRole === "super_admin" ||
+                                               userRole === "super admin" ||
+                                               (userRole === "admin" && isSuperAdminEmail) ||
+                                               isSuperAdminEmail;
+                              
+                              if (canDelete) {
+                                handleDeleteUser(user.id);
+                              } else {
+                                toast.error("Only Super Admin can delete users");
+                              }
+                            }}
+                            disabled={isDeleting}
+                            className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete User
+                          </DropdownMenuItem>
+                          {/* Moderation History Button */}
+                          <DropdownMenuItem 
+                            onClick={() => handleOpenHistoryModal(user.id)}
+                            className="text-blue-600 focus:text-blue-600 focus:bg-blue-50"
+                          >
+                            <History className="mr-2 h-4 w-4" />
+                            View History
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -667,7 +924,7 @@ export function UserManagement() {
                           ? "secondary"
                           : "destructive"
                       }
-                      className="font-medium"
+                      className={`font-medium ${selectedUser.status === "Banned" ? "bg-red-600 text-white hover:bg-red-700" : ""}`}
                     >
                       {selectedUser.status}
                     </Badge>
@@ -707,11 +964,64 @@ export function UserManagement() {
                     highlight
                   />
                 </div>
+                
+                {/* Ban Information - Show if user is banned */}
+                {selectedUser.banned_at && (
+                  <div className="mt-4 p-4 rounded-lg border-2 border-red-200 bg-red-50">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 mt-0.5">
+                        <Ban className="h-5 w-5 text-red-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h5 className="text-sm font-semibold text-red-900 mb-1">User Banned</h5>
+                        <p className="text-xs text-red-700 mb-2">
+                          Banned on: {selectedUser.banned_at ? new Date(selectedUser.banned_at).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          }) : 'N/A'}
+                        </p>
+                        {selectedUser.ban_reason && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-red-800 mb-1">Ban Reason:</p>
+                            <p className="text-sm text-red-900 bg-white p-2 rounded border border-red-200">
+                              {selectedUser.ban_reason}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Action Buttons - Only for Super Admin */}
-              {isSuperAdmin && (
+              {/* Action Buttons - For admins with manage_users permission */}
+              {permissions.manage_users && (
                 <div className="pt-4 border-t space-y-3">
+                  {/* Role Change Selector */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700">Change User Role</label>
+                    <Select
+                      value={selectedUser.role?.toLowerCase() || ""}
+                      onValueChange={(newRole) => handleUpdateUserRole(selectedUser.id, newRole)}
+                      disabled={isUpdatingRole}
+                    >
+                      <SelectTrigger className="w-full h-11">
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="agent">Agent</SelectItem>
+                        <SelectItem value="sponsor">Sponsor</SelectItem>
+                        <SelectItem value="influencer">Influencer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {isUpdatingRole && (
+                      <p className="text-xs text-slate-500">Updating role...</p>
+                    )}
+                  </div>
+
                   {/* Verify/Unverify Buttons */}
                   <div className="grid grid-cols-2 gap-3">
                     <Button 
@@ -748,10 +1058,184 @@ export function UserManagement() {
                         ? "Activate User" 
                         : "Suspend User"}
                   </Button>
+
+                  {/* Ban/Unban Buttons - For Super Admin Only */}
+                  {/* Ban Button - Show if user is not banned */}
+                  {(!selectedUser.banned_at || selectedUser.banned_at === null || selectedUser.banned_at === undefined || selectedUser.banned_at === "") ? (
+                    <Button 
+                      variant="destructive"
+                      className="w-full h-11 text-base font-medium mt-2"
+                      onClick={() => {
+                        // Check multiple ways to determine if user is super admin
+                        const userRole = authUser?.role?.toLowerCase()?.trim() || "";
+                        const userEmail = authUser?.email?.toLowerCase()?.trim() || "";
+                        
+                        // Check if email contains "superadmin" or matches known superadmin emails
+                        const isSuperAdminEmail = userEmail.includes("superadmin") || 
+                                                 userEmail === "admin@sourceimpact.com";
+                        
+                        const canBan = isSuperAdmin || 
+                                      permissions.ban_users || 
+                                      userRole === "superadmin" ||
+                                      userRole === "super_admin" ||
+                                      userRole === "super admin" ||
+                                      (userRole === "admin" && isSuperAdminEmail) ||
+                                      isSuperAdminEmail;
+                        
+                        if (canBan) {
+                          setShowBanModal(true);
+                        } else {
+                          toast.error("Only Super Admin can ban users");
+                        }
+                      }}
+                      disabled={isBanning}
+                    >
+                      <Ban className="mr-2 h-5 w-5" />
+                      {isBanning ? "Banning..." : "Ban User"}
+                    </Button>
+                  ) : (
+                    /* Unban Button - Show if user is banned */
+                    <Button 
+                      variant="default"
+                      className="w-full h-11 text-base font-medium bg-green-600 hover:bg-green-700 mt-2"
+                      onClick={() => handleUnbanUser(selectedUser.id)}
+                      disabled={isUnbanning}
+                    >
+                      <Ban className="mr-2 h-5 w-5" />
+                      {isUnbanning ? "Processing..." : "Unban User"}
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Moderation History Modal */}
+      <Dialog open={showHistoryModal} onOpenChange={setShowHistoryModal}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Moderation History</DialogTitle>
+            <DialogDescription>
+              Complete history of moderation actions performed on this user
+            </DialogDescription>
+          </DialogHeader>
+          <div className="pt-4">
+            {isLoadingHistory ? (
+              <div className="flex items-center justify-center py-12">
+                <p className="text-sm text-slate-500">Loading history...</p>
+              </div>
+            ) : moderationHistory.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <p className="text-sm text-slate-500">No moderation history found</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {moderationHistory.map((item, index) => (
+                  <div
+                    key={index}
+                    className="relative pl-8 pb-4 border-l-2 border-slate-200 last:border-l-0 last:pb-0"
+                  >
+                    <div className="absolute left-0 top-0 -translate-x-1/2">
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 border-white ${
+                          item.action === "ban"
+                            ? "bg-red-500"
+                            : item.action === "unban"
+                            ? "bg-green-500"
+                            : item.action === "suspend"
+                            ? "bg-amber-500"
+                            : "bg-slate-400"
+                        }`}
+                      />
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                      <div className="flex items-start justify-between mb-2">
+                        <Badge
+                          variant={
+                            item.action === "ban"
+                              ? "destructive"
+                              : item.action === "unban"
+                              ? "default"
+                              : "secondary"
+                          }
+                          className={
+                            item.action === "unban"
+                              ? "bg-green-600 text-white hover:bg-green-700"
+                              : ""
+                          }
+                        >
+                          {item.action.charAt(0).toUpperCase() + item.action.slice(1)}
+                        </Badge>
+                        <span className="text-xs text-slate-500">
+                          {new Date(item.created_at).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                      {item.reason && (
+                        <p className="text-sm text-slate-700 mt-2">
+                          <span className="font-medium">Reason:</span> {item.reason}
+                        </p>
+                      )}
+                      <p className="text-xs text-slate-500 mt-2">
+                        Performed by: {item.performed_by}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ban User Modal */}
+      <Dialog open={showBanModal} onOpenChange={setShowBanModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ban User</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for banning this user. This action cannot be undone easily.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="banReason">Ban Reason *</Label>
+              <Textarea
+                id="banReason"
+                placeholder="Enter the reason for banning this user (e.g., Violation of terms of service)"
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+                className="min-h-[100px]"
+                disabled={isBanning}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowBanModal(false);
+                  setBanReason("");
+                }}
+                disabled={isBanning}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleBanUser}
+                disabled={isBanning || !banReason.trim()}
+              >
+                {isBanning ? "Banning..." : "Ban User"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

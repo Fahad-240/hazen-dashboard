@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Flag, Check, X, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -10,18 +10,83 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
+import { getFlaggedContent } from "../../services/api";
+import { toast } from "sonner";
+
+interface FlaggedContentItem {
+  id: string;
+  type: string;
+  user: string;
+  reason: string;
+  reporter: string;
+  status: string;
+  date: string;
+}
 
 export function ContentModeration() {
-  const [flaggedContent, setFlaggedContent] = useState<Array<{
-    id: string;
-    type: string;
-    user: string;
-    reason: string;
-    reporter: string;
-    status: string;
-    date: string;
-  }>>([]);
-  const [selectedFlag, setSelectedFlag] = useState<typeof flaggedContent[0] | null>(null);
+  const [flaggedContent, setFlaggedContent] = useState<FlaggedContentItem[]>([]);
+  const [selectedFlag, setSelectedFlag] = useState<FlaggedContentItem | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
+
+  // Fetch flagged content on component mount
+  useEffect(() => {
+    fetchFlaggedContent();
+  }, [currentPage]);
+
+  const fetchFlaggedContent = async () => {
+    setIsLoading(true);
+    try {
+      const response = await getFlaggedContent({
+        page: currentPage,
+        limit: 10,
+      });
+
+      if (response.success && response.data) {
+        const flaggedGigs = response.data.flaggedContent?.gigs || [];
+        
+        // Map API response to component format
+        const mappedContent: FlaggedContentItem[] = flaggedGigs.map((gig: any) => ({
+          id: gig.id,
+          type: "Gig Posting",
+          user: gig.sponsor_name || gig.sponsor_email || "Unknown",
+          reason: gig.flagged_reason || "No reason provided",
+          reporter: "Admin", // API doesn't provide reporter, defaulting to Admin
+          status: "Pending", // Default status, can be updated if API provides it
+          date: gig.flagged_at 
+            ? new Date(gig.flagged_at).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "-",
+        }));
+
+        setFlaggedContent(mappedContent);
+        
+        if (response.data.pagination) {
+          setPagination(response.data.pagination);
+        }
+      } else {
+        toast.error(response.error || "Failed to fetch flagged content");
+        setFlaggedContent([]);
+      }
+    } catch (error) {
+      console.error("Error fetching flagged content:", error);
+      toast.error("Failed to fetch flagged content. Please try again.");
+      setFlaggedContent([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const typeBadge = (type: string) => {
     const variants: Record<string, string> = {
@@ -137,10 +202,10 @@ export function ContentModeration() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Flags" value="234" icon={Flag} />
-        <StatCard label="Pending Review" value="45" icon={Eye} />
-        <StatCard label="Resolved" value="167" icon={Check} />
-        <StatCard label="Dismissed" value="22" icon={X} />
+        <StatCard label="Total Flags" value={pagination.total.toString()} icon={Flag} />
+        <StatCard label="Pending Review" value={flaggedContent.filter(f => f.status === "Pending").length.toString()} icon={Eye} />
+        <StatCard label="Resolved" value={flaggedContent.filter(f => f.status === "Resolved").length.toString()} icon={Check} />
+        <StatCard label="Dismissed" value={flaggedContent.filter(f => f.status === "Dismissed").length.toString()} icon={X} />
       </div>
 
       {/* Flagged Content Table */}
@@ -149,7 +214,17 @@ export function ContentModeration() {
           <CardTitle>Flagged Content</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <DataTable columns={columns} data={flaggedContent} />
+          {isLoading ? (
+            <div className="p-8 text-center text-slate-500">
+              Loading flagged content...
+            </div>
+          ) : flaggedContent.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">
+              No flagged content found.
+            </div>
+          ) : (
+            <DataTable columns={columns} data={flaggedContent} />
+          )}
         </CardContent>
       </Card>
 

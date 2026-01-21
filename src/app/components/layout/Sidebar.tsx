@@ -44,11 +44,15 @@ const menuItems = [
 ];
 
 export function Sidebar({ currentView, onNavigate, collapsed, onToggleCollapse, mobile = false }: SidebarProps) {
-  const { permissions, user } = useAuth();
+  const { permissions, user, isSuperAdmin } = useAuth();
 
   // Filter menu items based on permissions
   const visibleMenuItems = menuItems.filter((item) => {
     if (!item.permission) return true; // Dashboard is always visible
+    
+    // Super admin ko sab items dikhne chahiye
+    if (isSuperAdmin) return true;
+    
     // Check if permission exists and is true
     if (!permissions || !item.permission) return false;
     // Use type-safe access
@@ -82,7 +86,7 @@ export function Sidebar({ currentView, onNavigate, collapsed, onToggleCollapse, 
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4">
+      <nav className="flex-1 overflow-y-auto py-4 scrollbar-hide">
         <div className="space-y-1 px-2">
           {visibleMenuItems.map((item) => {
             const Icon = item.icon;
